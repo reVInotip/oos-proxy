@@ -6,6 +6,7 @@
 #include <assert.h>
 #include "../include/shlib_operations/lib_stack.h"
 #include "../include/shlib_operations/loader.h"
+#include "../include/logger/logger.h"
 
 /*
 descr: Initialize all extensions
@@ -24,7 +25,8 @@ char *base_dir = "/home/grisha/Projects/oos-proxy/src/backend/contrib"; // enter
 
 int main(int argc, char *argv[]) {
     //read_config
-    //init_logger
+    init_logger();
+    elog(INFO, "Logger inited successfully");
 
     Lib_stack_ptr lib_stack = create_stack();
     loader(&lib_stack, base_dir);
@@ -35,7 +37,8 @@ int main(int argc, char *argv[]) {
     }
     else
     {
-        // add log record
+        elog(WARN, "No extensions have been downloaded");
     }
 
+    stop_logger();
 }

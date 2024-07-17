@@ -4,8 +4,8 @@ CCFLAGS = -fpic -c -Wall -Wpointer-arith -Wendif-labels -Wmissing-format-attribu
 
 LDFLAGS = -ldl
 
-all: main.o lib_stack.o loader.o
-	$(CC) $(LDFLAGS) lib_stack.o loader.o main.o -o oos_proxy
+all: main.o lib_stack.o loader.o logger.o
+	$(CC) $(LDFLAGS) logger.o lib_stack.o loader.o main.o -o oos_proxy
 
 include backend/Makefile
 

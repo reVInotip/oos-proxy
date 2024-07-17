@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include "../../include/shlib_operations/lib_stack.h"
 #include "../../include/shlib_operations/loader.h"
+#include "../../include/logger/logger.h"
 
 // if system macros is __USE_MUSC undefined
 #ifndef __USE_MISC
@@ -96,8 +97,7 @@ void default_loader(Lib_stack_ptr *stack, char *path_to_source, int curr_depth, 
             void *library = dlopen(full_name, RTLD_LAZY);
             if (library == NULL)
             {
-                //add log
-                perror(dlerror());
+                elog(WARN, dlerror());
             }
             push(stack, library);
 
