@@ -4,14 +4,14 @@
 #include <libconfig.h>
 #include <string.h>
 #include <assert.h>
-#include "../include/shlib_operations/lib_stack.h"
+#include "../include/utils/stack.h"
 #include "../include/shlib_operations/loader.h"
 #include "../include/logger/logger.h"
 
 /*
 descr: Initialize all extensions
 */
-void init_all_exetensions(Lib_stack_ptr lib_stack)
+void init_all_exetensions(Stack_ptr lib_stack)
 {
     void (*function)() = dlsym(top(lib_stack), "init");
     function();
@@ -28,7 +28,7 @@ int main(int argc, char *argv[]) {
     init_logger();
     elog(INFO, "Logger inited successfully");
 
-    Lib_stack_ptr lib_stack = create_stack();
+    Stack_ptr lib_stack = create_stack();
     loader(&lib_stack, base_dir);
 
     if (get_size(lib_stack) > 0)

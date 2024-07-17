@@ -1,6 +1,6 @@
 #pragma once
 
-#include "lib_stack.h"
+#include "../utils/stack.h"
 
 /*
 descr: Find and load all shared libraties

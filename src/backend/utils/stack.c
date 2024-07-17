@@ -1,23 +1,23 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <stdio.h>
-#include "../../include/shlib_operations/lib_stack.h"
+#include "../../include/utils/stack.h"
 
-extern inline Lib_stack_ptr create_stack()
+extern inline Stack_ptr create_stack()
 {
     return NULL;
 }
 
-extern void* top(Lib_stack_ptr stack)
+extern void* stack_top(Stack_ptr stack)
 {
     assert(stack != NULL);
 
     return stack->lib_handle;
 }
 
-extern void push(Lib_stack_ptr *stack, void *element)
+extern void push_to_stack(Stack_ptr *stack, void *element)
 {   
-    Lib_stack_elem *new_element = (Lib_stack_elem *) malloc(sizeof(Lib_stack_elem));
+    Stack_elem *new_element = (Stack_elem *) malloc(sizeof(Stack_elem));
     assert(new_element != NULL);
     
     new_element->lib_handle = element;
@@ -25,22 +25,22 @@ extern void push(Lib_stack_ptr *stack, void *element)
     *stack = new_element;
 }
 
-extern void* pop(Lib_stack_ptr *stack)
+extern void* pop_from_stack(Stack_ptr *stack)
 {
     assert(stack != NULL);
 
     void *elem_data = (*stack)->lib_handle;
-    Lib_stack_elem *elem_for_erase = *stack;
+    Stack_elem *elem_for_erase = *stack;
     *stack = (*stack)->next_elem;
     free(elem_for_erase);
     return elem_data;
 }
 
-extern void destroy_stack(Lib_stack_ptr *stack)
+extern void destroy_stack(Stack_ptr *stack)
 {
     assert(stack != NULL);
 
-    Lib_stack_ptr curr_stack = NULL;
+    Stack_ptr curr_stack = NULL;
     while (stack != NULL)
     {
         curr_stack = *stack;
@@ -49,11 +49,11 @@ extern void destroy_stack(Lib_stack_ptr *stack)
     }
 }
 
-extern size_t get_size(Lib_stack_ptr stack)
+extern size_t get_stack_size(Stack_ptr stack)
 {
     size_t size = 0;
 
-    Lib_stack_ptr curr_stack = stack;
+    Stack_ptr curr_stack = stack;
     while (curr_stack != NULL)
     {
         ++size;

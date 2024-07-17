@@ -5,7 +5,7 @@
 #include <string.h>
 #include <assert.h>
 #include <stdio.h>
-#include "../../include/shlib_operations/lib_stack.h"
+#include "../../include/utils/stack.h"
 #include "../../include/shlib_operations/loader.h"
 #include "../../include/logger/logger.h"
 
@@ -72,7 +72,7 @@ args: stack - stack of shared libraries, path_to_source - path to the directory 
     curr_depth - current scan depth relative to the start directory,
     depth - max scan depth relative to the start directory
 */
-void default_loader(Lib_stack_ptr *stack, char *path_to_source, int curr_depth, const int depth)
+void default_loader(Stack_ptr *stack, char *path_to_source, int curr_depth, const int depth)
 {
     assert(path_to_source != NULL);
 
@@ -99,7 +99,7 @@ void default_loader(Lib_stack_ptr *stack, char *path_to_source, int curr_depth, 
             {
                 elog(WARN, dlerror());
             }
-            push(stack, library);
+            push_to_stack(stack, library);
 
             free(full_name);
             break;
