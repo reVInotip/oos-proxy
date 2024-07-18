@@ -2,12 +2,8 @@ CC = gcc
 
 CCFLAGS = -fpic -c -Wall -Wpointer-arith -Wendif-labels -Wmissing-format-attribute -Wimplicit-fallthrough=3 -Wcast-function-type -Wshadow=compatible-local -Wformat-security -fno-strict-aliasing -fwrapv -g -O2
 
-LDFLAGS = -ldl
+utils.o: 
+	$(CC) $(CCFLAGS) backend/utils/hash_map.c backend/utils/stack.c
 
-all: main.o utils.a loader.o logger.o guc.o
-	$(CC) $(LDFLAGS) guc.o logger.o loader.o main.o -L . -l utils -o oos_proxy
-
-include backend/Makefile
-
-clean:
-	rm -rf *.o *.a
+utils.a: utils.o
+	ar -rc libutils.a stack.o hash_map.o && ranlib libutils.a
