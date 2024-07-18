@@ -2,8 +2,9 @@
 #include <assert.h>
 #include <string.h>
 #include "../../include/utils/hash_map.h"
+#include "../../include/guc/guc.h"
 
-long hash_function(char *string)
+long hash_function(const char *string)
 {
     const long mod = 1e9 + 7;
     const int k = 31;
@@ -11,7 +12,8 @@ long hash_function(char *string)
     long hash = 0;
     for (int i = 0; string[i] != '\0'; ++i)
     {
-        int x = (hash * k + x) % mod;
+        int x = (int) (string[i] - 'a' + 1);
+        hash = (hash * k + x) % mod;
     }
 
     return hash;
@@ -22,24 +24,27 @@ extern Hash_map_ptr create_map()
     return NULL;
 }
 
-extern void *get_element(Hash_map_ptr map, char *key)
+extern void *get_map_element(Hash_map_ptr map, const char *key)
 {   
     long key_hash = hash_function(key);
     void *value = NULL;
 
+    Hash_map_ptr curr_map = map;
+
     for (int i = 0; i < get_map_size(map); ++i)
     {
-        if (key_hash == map->key)
+        if (key_hash == curr_map->key)
         {
-            value = map->value;
+            value = curr_map->value;
             break;
         }
+        curr_map = curr_map->next_elem;
     }
 
     return value;
 }
 
-extern void push_to_map(Hash_map_ptr *map, char *key, void *value)
+extern void push_to_map(Hash_map_ptr *map, const char *key, void *value)
 {
     Hash_map_elem *new_element = (Hash_map_elem *) malloc(sizeof(Hash_map_elem));
     assert(new_element != NULL);

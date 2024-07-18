@@ -8,14 +8,15 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <stdbool.h>
-#include "../../../include/logger/logger.h"
+#include "../../include/logger/logger.h"
+#include "../../include/guc/guc.h"
 
 // move it into config
-#define LOG_CAP 10 //8 * 1024
-#define LOG1_FILE_NAME "log/oos_proxy_1.log"
-#define LOG2_FILE_NAME "log/oos_proxy_2.log"
-#define LOG_DIR_NAME "log"
-#define INFO_IN_LOG 1
+//#define LOG_CAP 10 //8 * 1024
+//#define LOG1_FILE_NAME "log/oos_proxy_1.log"
+//#define LOG2_FILE_NAME "log/oos_proxy_2.log"
+//#define LOG_DIR_NAME "log"
+//#define INFO_IN_LOG 1
 #define TIME_BUFFER_SIZE 100
 #define DATE_BUFFER_SIZE 50
 #define OFFSET_BUFFER_SIZE 5
@@ -33,7 +34,7 @@ enum
 
 typedef struct log_file {
     FILE *file;
-    char *log_file_name[2];
+    char log_file_name[2][MAX_CONFIG_VALUE_SIZE];
     int curr_log_file;
 } Log_file;
 
@@ -83,7 +84,9 @@ int log_file_full(int file_number)
 
     struct stat file_stat;
     stat(log_file.log_file_name[file_number], &file_stat);
-    if (file_stat.st_size >= LOG_CAP)
+
+    Guc_data log_cap = get_config_parameter("log_capacity");
+    if (file_stat.st_size >= log_cap.num)
     {
         return 1;
     }
@@ -112,6 +115,15 @@ extern void elog(E_LEVEL level, const char *format, ...)
         swap_log_files();
     }
 
+    if (level == INFO)
+    {
+        Guc_data info_in_log = get_config_parameter("info_in_log");
+        if (!info_in_log.num)
+        {
+            return;
+        }
+    }
+
     fprintf(log_file.file, "%s %s %s: %s %s%c", date, time, offset,
         get_str_elevel(level), format, '\n');
 }
@@ -125,13 +137,17 @@ extern void init_logger()
     }
 
     bool is_log_dir_exists = false;
+    Guc_data log_dir_name = get_config_parameter("log_dir_name");
+    Guc_data log1_file_name = get_config_parameter("log1_file_name");
+    Guc_data log2_file_name = get_config_parameter("log2_file_name");
     
     DIR *source = opendir(".");
     struct dirent* entry;
 
     while ((entry = readdir(source)) != NULL)
     {
-        if (!strcmp(entry->d_name, LOG_DIR_NAME) && entry->d_type == DT_DIR) {
+        if (!strcmp(entry->d_name, log_dir_name.str) && entry->d_type == DT_DIR)
+        {
             is_log_dir_exists = true;
             break;
         }
@@ -139,14 +155,14 @@ extern void init_logger()
 
     log_file.curr_log_file = 0;
 
-    log_file.log_file_name[0] = LOG1_FILE_NAME;
-    log_file.log_file_name[1] = LOG2_FILE_NAME;
+    strcpy(log_file.log_file_name[0], log1_file_name.str);
+    strcpy(log_file.log_file_name[1], log2_file_name.str);
 
     bool is_log_file_full[2] = {false, false};
 
     if (is_log_dir_exists)
     {  
-        source = opendir(LOG_DIR_NAME);
+        source = opendir(log_dir_name.str);
 
         is_log_file_full[0] = log_file_full(0) > 0;
         is_log_file_full[1] = log_file_full(1) > 0;
@@ -164,7 +180,7 @@ extern void init_logger()
             return;
         }
 
-        log_file.file = fopen(LOG1_FILE_NAME, "a");
+        log_file.file = fopen(log1_file_name.str, "a");
     }
 
     if (is_log_file_full[log_file.curr_log_file])
