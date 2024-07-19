@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <stdbool.h>
+#include <stdlib.h>
 #include "../../include/logger/logger.h"
 #include "../../include/guc/guc.h"
 
@@ -38,17 +39,17 @@ typedef struct log_file {
     int curr_log_file;
 } Log_file;
 
-Log_file log_file;
+Log_file *log_file;
 
 inline void swap_log_files()
 {   
-    fclose(log_file.file);
+    fclose(log_file->file);
 
-    log_file.curr_log_file = (log_file.curr_log_file + 1) % 2;
+    log_file->curr_log_file = (log_file->curr_log_file + 1) % 2;
 
-    log_file.file = fopen(log_file.log_file_name[log_file.curr_log_file], "w");
+    log_file->file = fopen(log_file->log_file_name[log_file->curr_log_file], "w");
 
-    if (log_file.file == NULL)
+    if (log_file->file == NULL)
     {
         perror(strerror(errno));
         return;
@@ -85,7 +86,7 @@ int log_file_full(int file_number)
     }
 
     struct stat file_stat;
-    stat(log_file.log_file_name[file_number], &file_stat);
+    stat(log_file->log_file_name[file_number], &file_stat);
 
     Guc_data log_cap = get_config_parameter("log_capacity");
     if (file_stat.st_size >= log_cap.num)
@@ -110,7 +111,7 @@ extern void elog(E_LEVEL level, const char *format, ...)
     char offset[OFFSET_BUFFER_SIZE] = {'\0'};
     strftime(offset, sizeof(time), "%Z", now);
 
-    int curr_log_file_full = log_file_full(log_file.curr_log_file);
+    int curr_log_file_full = log_file_full(log_file->curr_log_file);
 
     if (curr_log_file_full > 0)
     {
@@ -126,7 +127,7 @@ extern void elog(E_LEVEL level, const char *format, ...)
         }
     }
 
-    fprintf(log_file.file, "%s %s %s: %s %s%c", date, time, offset,
+    fprintf(log_file->file, "%s %s %s: %s %s%c", date, time, offset,
         get_str_elevel(level), format, '\n');
 }
 
@@ -137,6 +138,8 @@ extern void init_logger()
         perror(strerror(errno));
         return;
     }
+
+    log_file = (Log_file *) malloc(sizeof(Log_file));
 
     bool is_log_dir_exists = false;
     Guc_data log_dir_name = get_config_parameter("log_dir_name");
@@ -155,10 +158,10 @@ extern void init_logger()
         }
     }
 
-    log_file.curr_log_file = 0;
+    log_file->curr_log_file = 0;
 
-    strcpy(log_file.log_file_name[0], log1_file_name.str);
-    strcpy(log_file.log_file_name[1], log2_file_name.str);
+    strncpy(log_file->log_file_name[0], log1_file_name.str, sizeof(log1_file_name.str));
+    strncpy(log_file->log_file_name[1], log2_file_name.str, sizeof(log2_file_name.str));
 
     bool is_log_file_full[2] = {false, false};
 
@@ -171,7 +174,7 @@ extern void init_logger()
         
         if (is_log_file_full[0] && !is_log_file_full[1])
         {
-            log_file.curr_log_file = 1;
+            log_file->curr_log_file = 1;
         }
     }
     else
@@ -182,20 +185,21 @@ extern void init_logger()
             return;
         }
 
-        log_file.file = fopen(log1_file_name.str, "a");
+        log_file->file = fopen(log1_file_name.str, "a");
     }
 
-    if (is_log_file_full[log_file.curr_log_file])
+    if (is_log_file_full[log_file->curr_log_file])
     {
-        log_file.file = fopen(log_file.log_file_name[log_file.curr_log_file], "w");
+        log_file->file = fopen(log_file->log_file_name[log_file->curr_log_file], "w");
     }
     else
     {
-        log_file.file = fopen(log_file.log_file_name[log_file.curr_log_file], "a");
+        log_file->file = fopen(log_file->log_file_name[log_file->curr_log_file], "a");
     }
 }
 
 extern void stop_logger()
 {
-    fclose(log_file.file);
+    fclose(log_file->file);
+    free(log_file);
 }

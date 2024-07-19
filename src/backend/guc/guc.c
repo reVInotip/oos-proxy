@@ -40,7 +40,8 @@ void analize_config_string(const char *conf_str, Conf_string *converted_conf_str
     bool is_value_exists = false;
     *value_is_digit = true;
     *string_is_incorrect = true;
-    for (size_t i = 0, k = 0; i < strlen(conf_str); i++, k++)
+    int k = 0;
+    for (size_t i = 0; i < strlen(conf_str); i++)
     {
         if (conf_str[i] == ' ')
         {
@@ -57,7 +58,8 @@ void analize_config_string(const char *conf_str, Conf_string *converted_conf_str
         else if (conf_str[i] == '=')
         {
             is_equal_sign = true;
-            k = -1;
+            converted_conf_str->key[k + 1] = '\0';
+            k = 0;
             continue;
         }
 
@@ -72,6 +74,7 @@ void analize_config_string(const char *conf_str, Conf_string *converted_conf_str
             *string_is_incorrect = false;
 
             converted_conf_str->value->str[k] = conf_str[i];
+            ++k;
 
             if (conf_str[i] < '0' || conf_str[i] > '9')
             {
@@ -89,8 +92,11 @@ void analize_config_string(const char *conf_str, Conf_string *converted_conf_str
             is_key_exists = true;
 
             converted_conf_str->key[k] = conf_str[i];
+            ++k;
         }
     }
+
+    converted_conf_str->value->str[k] = '\0';
 
     if (!is_value_exists)
     {

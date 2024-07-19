@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
+#include <stdio.h>
 #include "../../include/utils/hash_map.h"
 #include "../../include/guc/guc.h"
 
@@ -31,7 +32,7 @@ extern void *get_map_element(Hash_map_ptr map, const char *key)
 
     Hash_map_ptr curr_map = map;
 
-    for (int i = 0; i < get_map_size(map); ++i)
+    for (size_t i = 0; i < get_map_size(map); ++i)
     {
         if (key_hash == curr_map->key)
         {
