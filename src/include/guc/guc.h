@@ -1,6 +1,6 @@
 #pragma once
 
-#define MAX_CONFIG_VALUE_SIZE 100
+#define MAX_CONFIG_VALUE_SIZE 300
 #define MAX_CONFIG_KEY_SIZE 100
 #define CONF_FILE_NAME "oos_proxy.conf"
 #define STANDART_DESCRIPTION "this is a config variable"
@@ -35,7 +35,7 @@ typedef enum
     STRING
 } Config_vartype;
 
-typedef struct
+typedef struct guc_variable
 {
     Guc_data elem;
     Guc_context context;

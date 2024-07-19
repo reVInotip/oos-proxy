@@ -28,8 +28,8 @@ enum
 char *create_new_string(char *str1, char *str2, char separator)
 {
     size_t len1 = strlen(str1);
-    size_t len = len1 + strlen(str2);
-
+    size_t len = len1 + strlen(str2) + 2; // len of first string + len of second string +
+                                          // + separator + end of string ('\0')
     char *new_str = (char *) malloc(len);
     memset(new_str, '\0', len);
     new_str = strcpy(new_str, str1);

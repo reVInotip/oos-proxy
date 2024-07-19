@@ -30,4 +30,6 @@ int main(int argc, char *argv[]) {
 
     close_all_exetensions(lib_stack);
     stop_logger();
+
+    return 0;
 }
