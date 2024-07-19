@@ -38,7 +38,6 @@ typedef struct log_file {
     int curr_log_file;
 } Log_file;
 
-// replace it to GUC
 Log_file log_file;
 
 inline void swap_log_files()
@@ -75,6 +74,9 @@ char *get_str_elevel(E_LEVEL level)
     return NULL;
 }
 
+/**
+ * \brief Check is log file full
+ */
 int log_file_full(int file_number)
 {   
     if (file_number != 0 && file_number != 1)

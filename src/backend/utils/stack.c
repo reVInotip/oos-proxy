@@ -12,7 +12,7 @@ extern void* stack_top(Stack_ptr stack)
 {
     assert(stack != NULL);
 
-    return stack->lib_handle;
+    return stack->data;
 }
 
 extern void push_to_stack(Stack_ptr *stack, void *element)
@@ -20,7 +20,7 @@ extern void push_to_stack(Stack_ptr *stack, void *element)
     Stack_elem *new_element = (Stack_elem *) malloc(sizeof(Stack_elem));
     assert(new_element != NULL);
     
-    new_element->lib_handle = element;
+    new_element->data = element;
     new_element->next_elem = *stack;
     *stack = new_element;
 }
@@ -29,7 +29,7 @@ extern void* pop_from_stack(Stack_ptr *stack)
 {
     assert(stack != NULL);
 
-    void *elem_data = (*stack)->lib_handle;
+    void *elem_data = (*stack)->data;
     Stack_elem *elem_for_erase = *stack;
     *stack = (*stack)->next_elem;
     free(elem_for_erase);

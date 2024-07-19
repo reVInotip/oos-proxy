@@ -11,31 +11,31 @@
 
 Hash_map_ptr map;
 
+/**
+ * \brief Type of config string (key = value)
+ */
 typedef struct conf_string
 {
     char key[MAX_CONFIG_KEY_SIZE];
     Guc_data *value;
 } Conf_string;
 
-bool is_number(char *string)
-{
-    for (size_t i = 0; i < strlen(string); i++)
-    {
-        if (string[i] < '0' || string[i] > '9')
-        {
-            return false;
-        }
-    }
-    
-    return true;
-}
-
+/**
+ * \brief Analize config raw string: extract from it key and value,
+ * check if string is invalid, discards comments or empty strings
+ * \param [in] conf_str - Raw config string
+ * \param [out] converted_conf_str - key and value extracted from string
+ * \param [out] value_is_digit - Is value digit or not?
+ * \param [out] string_is_incorrect - Is string incorrect (or comment)?
+ * \return nothing
+ */
 void analize_config_string(const char *conf_str, Conf_string *converted_conf_str, bool *value_is_digit, bool *string_is_incorrect)
 {   
     assert(conf_str != NULL);
     assert(converted_conf_str != NULL);
 
-    bool is_equal_sign = false;
+    bool is_equal_sign = false; // Was equals sign (=) founded in string
+                                // It needs for validating and separation key and value
     bool is_key_exists = false;
     bool is_value_exists = false;
     *value_is_digit = true;

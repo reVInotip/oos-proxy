@@ -6,7 +6,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include "../../include/utils/stack.h"
-#include "../../include/shlib_operations/loader.h"
+#include "../../include/shlib_operations/operations.h"
 #include "../../include/logger/logger.h"
 
 // if system macros is __USE_MUSC undefined
@@ -21,10 +21,10 @@ enum
 #endif
 
 
-/*
-descr: Create new string by concatenating two strings divided by separator (-1 means without separator)
-return: str1 + separator + str2
-*/
+/**
+ * \brief Create new string by concatenating two strings divided by separator (-1 means without separator)
+ * \return str1 + separator + str2
+ */
 char *create_new_string(char *str1, char *str2, char separator)
 {
     size_t len1 = strlen(str1);
@@ -44,10 +44,11 @@ char *create_new_string(char *str1, char *str2, char separator)
     return new_str;
 }
 
-/*
-descr: Extracts "top" directory from path to source
-args: sample - result of the function: directory name + .so
-*/
+/**
+ * \brief Extracts "top" directory from path to source
+ * \param [in] path_to_source - path from which sample is extracted
+ * \param [in] sample - result of the function: directory name + .so
+ */
 void get_sample(char *path_to_source, char *sample)
 {
     int k = 0;
@@ -66,13 +67,7 @@ void get_sample(char *path_to_source, char *sample)
     sample[++k] = '\0';
 }
 
-/*
-descr: Find and load all shared libraties
-args: stack - stack of shared libraries, path_to_source - path to the directory containing extensions,
-    curr_depth - current scan depth relative to the start directory,
-    depth - max scan depth relative to the start directory
-*/
-void default_loader(Stack_ptr *stack, char *path_to_source, int curr_depth, const int depth)
+extern void default_loader(Stack_ptr *stack, char *path_to_source, int curr_depth, const int depth)
 {
     assert(path_to_source != NULL);
 
