@@ -1,3 +1,7 @@
+/**
+ * The main proccess (the Boss)
+ */
+
 #include <dlfcn.h>
 #include <dirent.h>
 #include <stdlib.h>

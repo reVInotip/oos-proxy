@@ -7,6 +7,12 @@
 #include "../../include/utils/stack.h"
 #include "../../include/shlib_operations/operations.h"
 
+/**
+    \brief Initialize all extensions (call init function with some args)
+    \param [in] lib_stack - stack which contains shared libraries handles
+    \param [in] args - arguments for extension init function
+    \return nothing
+*/
 extern void init_all_exetensions(Stack_ptr lib_stack)
 {   
     assert(lib_stack != NULL);
