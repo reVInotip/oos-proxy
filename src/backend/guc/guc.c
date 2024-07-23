@@ -126,8 +126,8 @@ extern void parse_config()
 {
     FILE *config = fopen(CONF_FILE_NAME, "r");
     if (config == NULL)
-    {
-        //elog(WARN, "Can`t read config file. Use default GUC values");
+    {   
+        write_stderr("Can`t read config file. Use default GUC values\n");
         return;
     }
 

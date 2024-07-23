@@ -12,6 +12,8 @@
 
 #pragma once
 
+#include "../../include/guc/guc.h"
+
 /**
  * \brief Level of log messages
  * \details
@@ -31,6 +33,17 @@ typedef enum e_level {
     ERROR = 5
 } E_LEVEL;
 
-extern void elog(E_LEVEL level, const char *format, ...) __attribute__((format (printf, 2, 3)));
+#define elog(elevel, format, ...) \
+    do \
+    { \
+        write_log(elevel, __FILE__, __LINE__, format, ## __VA_ARGS__); \
+    } while(0)
+
+extern void write_log(E_LEVEL level,
+                    const char *filename,
+                    int line_number,
+                    const char *format,
+                    ...) __attribute__((format(printf, 4, 5)));
+extern void write_stderr(const char *format, ...) __attribute__((format(printf, 1, 2)));                        
 extern void init_logger();
 extern void stop_logger();

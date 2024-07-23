@@ -6,11 +6,11 @@ LDFLAGS = -ldl
 
 LDFLAGS_DEBUG = -fsanitize=address,leak,undefined
 
-all: main.o utils.a shlib_operations.a logger.o guc.o
-	$(CC) $(LDFLAGS) guc.o logger.o loader.o main.o -L . libutils.a liboperations.a -o oos_proxy
+all: main.o utils.a shlib_operations.a logger.o guc.o allocator.o
+	$(CC) $(LDFLAGS) allocator.o guc.o logger.o loader.o main.o -L . libutils.a liboperations.a -o oos_proxy
 
-debug: main.o utils.a shlib_operations.a logger.o guc.o
-	$(CC) $(LDFLAGS) $(LDFLAGS_DEBUG) guc.o logger.o loader.o main.o -L . libutils.a liboperations.a -o oos_proxy
+debug: main.o utils.a shlib_operations.a logger.o guc.o allocator.o
+	$(CC) $(LDFLAGS) $(LDFLAGS_DEBUG) allocator.o guc.o logger.o loader.o main.o -L . libutils.a liboperations.a -o oos_proxy
 
 include backend/Makefile
 

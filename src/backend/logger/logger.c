@@ -9,6 +9,7 @@
 #include <sys/types.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include "../../include/logger/logger.h"
 #include "../../include/guc/guc.h"
 
@@ -104,10 +105,12 @@ int log_file_full(int file_number)
 /**
  * \brief Write something into .log file
  * \param [in] level - log level
- * \param [in] format - formated string which will be writed
+ * \param [in] filename - name of file where the error occurred
+ * \param [in] line_number - line where the error occurred
+ * \param [in] format - formated string
  * \return nothing
  */
-extern void elog(E_LEVEL level, const char *format, ...)
+extern void write_log(E_LEVEL level, const char *filename, int line_number, const char *format, ...)
 {   
     time_t log_time = time(NULL);
     struct tm *now = localtime(&log_time);
@@ -128,17 +131,44 @@ extern void elog(E_LEVEL level, const char *format, ...)
         swap_log_files();
     }
 
+    va_list args;
+    va_start(args, format);
+
     if (level == INFO)
     {
         Guc_data info_in_log = get_config_parameter("info_in_log");
         if (!info_in_log.num)
         {
+            write_stderr(format, args);
             return;
         }
     }
 
-    fprintf(log_file->file, "%s %s %s: %s %s%c", date, time, offset,
-        get_str_elevel(level), format, '\n');
+    fprintf(log_file->file, "%s %s %s | %s: \"", date, time, offset,
+        get_str_elevel(level));
+    vfprintf(log_file->file, format, args);
+    fprintf(log_file->file, "\" in file: %s, line: %d\n", filename, line_number);
+    fflush(log_file->file);
+    
+    va_end(args);
+}
+
+/**
+ * \brief Write something into stderr (if log file was not initialized or
+ *          error level is INFO)
+ * \param [in] format - formated string
+ * \return nothing
+ */
+extern void write_stderr(const char *format, ...)
+{
+    va_list	args;
+
+	va_start(args, format);
+
+	vfprintf(stderr, format, args);
+	fflush(stderr);
+
+    va_end(args);
 }
 
 /**
