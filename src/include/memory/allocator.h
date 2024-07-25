@@ -22,10 +22,11 @@
 #endif
 
 extern int init_OOS_allocator();
-extern void *OOS_allocate_block();
-extern int OOS_allocate_chain(void *block_addresses[], const size_t count_blocks, const size_t array_length);
-extern int OOS_save_to_chain(const void *start_addr, const size_t length, const char *data);
-extern void OOS_free_block(const void *block_addr);
-extern void OOS_free_chain(const void *block_addr);
+extern void *OOS_allocate(const size_t count_blocks);
+extern int OOS_read(const void *start_addr, char *buffer, const size_t len);
+extern int OOS_get_chain(void *block_addresses[], const void *start_addr, const size_t len);
+extern int OOS_write(const void *start_addr, const size_t len, const char *buffer);
+extern void OOS_free(const void *addr);
 extern void destroy_OOS_allocator();
 extern void print_OOS_alloc_mem();
+extern bool is_chain(Header_elem *block_or_chain);

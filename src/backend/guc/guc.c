@@ -228,6 +228,7 @@ extern Guc_data get_config_parameter(const char *name)
     
     if (var == NULL)
     {
+        write_stderr("Config variable %s does not exists", name);
         elog(ERROR, "Config variable %s does not exists", name);
     }
     return var->elem;

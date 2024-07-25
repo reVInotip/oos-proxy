@@ -119,17 +119,43 @@ extern int init_OOS_allocator()
     return 0;  
 }
 
+extern bool is_chain(Header_elem *block_or_chain)
+{
+    return block_or_chain->next_header_elem != NULL;
+}
+
+/**
+ * \brief Allocate memory
+ * \param [in] count_blocks - count blocks for allocate
+ * \note if count_blocks == 1 allocate block else allocate chain
+ * \return NULL if something went wrong, pointer to start block of chain if all is OK
+ */
+extern void *OOS_allocate(const size_t count_blocks)
+{
+    if (count_blocks <= 0)
+    {
+        return NULL;
+    }
+    else if (count_blocks == 1)
+    {
+        return OOS_allocate_block();
+    }
+
+    return OOS_allocate_chain(count_blocks);
+}
+
 /**
  * \brief Allocate only one block from pool
- * \return Pointer to start of this block
+ * \return Pointer to start of this block or NULL
  */
-extern void *OOS_allocate_block()
+void *OOS_allocate_block()
 {
     Header_elem *header_of_free_block = get_free_block_addr();
 
     if (header_of_free_block == NULL)
     {
         elog(ERROR, "Heap buffer overflow");
+        return NULL;
     }
 
     header_of_free_block->is_free = false;
@@ -139,25 +165,19 @@ extern void *OOS_allocate_block()
 
 /**
  * \brief Allocate chain of blocks
- * \param [out] block_addresses - Addresses of blocks from chain
  * \param [in] count_blocks - count blocks for allocate
- * \param [in] array_length - length of array block_addresses
- * \return -1 if something went wrong, 0 if all is OK
+ * \return NULL if something went wrong, pointer to start block of chain if all is OK
  * \note Addresses are written to the array in order by block number in the chain
  */
-extern int OOS_allocate_chain(void *block_addresses[], const size_t count_blocks, const size_t array_length)
+void *OOS_allocate_chain(const size_t count_blocks)
 {
-    if (array_length > count_blocks)
-    {
-        return -1;
-    }
-
     Header_elem *header_of_free_block = get_free_block_addr();
     if (header_of_free_block == NULL)
     {
         elog(ERROR, "Heap buffer overflow");
-        return -1;
+        return NULL;
     }
+    void *start = header_of_free_block->block_addr;
 
     Header_elem *chain_start_block = header_of_free_block;
     Header_elem *prev_header_block = header_of_free_block;
@@ -177,10 +197,9 @@ extern int OOS_allocate_chain(void *block_addresses[], const size_t count_blocks
             }
                 
             elog(ERROR, "Heap buffer overflow");
-            return -1;
+            return NULL;
         }
         header_of_free_block->is_free = false;
-        block_addresses[i] = header_of_free_block->block_addr;
 
         // get new free block
         header_of_free_block = get_free_block_addr();
@@ -190,14 +209,90 @@ extern int OOS_allocate_chain(void *block_addresses[], const size_t count_blocks
 
     // operations with last allocated free block
     header_of_free_block->is_free = false;
-    block_addresses[count_blocks - 1] = header_of_free_block->block_addr;
     
+    return start;
+}
+
+/**
+ * \brief Read data from chain or block
+ * \param [in] start_addr - address of block or start address or chain
+ * \param [out] buffer - buffer for write reading data
+ * \param [in] len - length of buffer
+ * \return -1 if something went wrong, 0 if all is OK
+ */
+extern int OOS_read(const void *start_addr, char *buffer, const size_t len)
+{
+    assert(start_addr != NULL);
+    
+    Header_elem *header_block = get_block_header(start_addr);
+    if (header_block == NULL || header_block->is_free || len == 0)
+    {
+        return -1;
+    }
+
+    if (header_block->next_header_elem != NULL)
+    {
+        // read from chain
+        const size_t count_blocks_for_read = len / (size_t) MAX_BLOCK_SIZE +
+                                    (len % (size_t) MAX_BLOCK_SIZE > 0);
+        size_t curr_buffer_index = 0;
+        for (size_t i = 0; i < count_blocks_for_read; i++)
+        {
+            if (header_block == NULL)
+            {
+                elog(ERROR, "Invalid pointer");
+                return -1;
+            }
+
+            memcpy(&buffer[curr_buffer_index], header_block->block_addr, MAX_BLOCK_SIZE);
+            header_block = header_block->next_header_elem;
+            curr_buffer_index += MAX_BLOCK_SIZE;
+        }
+    }
+    else
+    {
+        // read from block
+        memcpy(buffer, header_block->block_addr, MAX_BLOCK_SIZE);
+    }
+
     return 0;
 }
 
 /**
- * \brief Save something to chain that starts with block address start_addr. It can be subchain too.
- * \details This function !COPY! bytes from data to blocks of chain. This means that the function works
+ * \brief Get addresses of each block in chain. You can use it for get inline access to data in chain
+ * \param [out] block_addresses - Addresses of blocks from chain
+ * \param [in] start_addr - Addresse of chain start
+ * \param [in] len - length of array block_addresses
+ * \return -1 if something went wrong, 0 if all is OK
+ * \note Addresses are written to the array in order by block number in the chain
+ */
+extern int OOS_get_chain(void *block_addresses[], const void *start_addr, const size_t len)
+{
+    Header_elem *header_free_block = get_block_header(start_addr);
+    if (header_free_block == NULL || header_free_block->is_free || len == 0)
+    {
+        return -1;
+    }
+
+    for (size_t i = 0; i < len; i++)
+    {
+        if (header_free_block == NULL)
+        {
+            elog(ERROR, "Invalid pointer");
+            return -1;
+        }
+
+        block_addresses[i] = header_free_block->block_addr;
+        header_free_block = header_free_block->next_header_elem;
+    }
+    
+
+    return 0;
+}
+
+/**
+ * \brief Save something to chain (subchain) or block that starts with block address start_addr.
+ * \details This function !COPY! bytes from data to blocks of chain of simple block. This means that the function works
  * in time linear to the data size. But its use may be more convenient than copying data directly
  * (of course you can do it too)
  * \param [in] start_addr - address of first chain (or subchain) block
@@ -205,73 +300,69 @@ extern int OOS_allocate_chain(void *block_addresses[], const size_t count_blocks
  * \param [in] data - buffer to save
  * \return -1 if something went wrong, 0 if all is OK
  */
-extern int OOS_save_to_chain(const void *start_addr, const size_t length, const char *data)
+extern int OOS_write(const void *start_addr, const size_t len, const char *buffer)
 {
-    Header_elem *header_free_block = get_block_header(start_addr);
-    if (header_free_block == NULL || header_free_block->is_free)
+    Header_elem *header_block = get_block_header(start_addr);
+    if (header_block == NULL || header_block->is_free || len == 0)
     {
         return -1;
     }
 
-    const size_t count_blocks_for_save = length / (size_t) MAX_BLOCK_SIZE +
-                                    (length % (size_t) MAX_BLOCK_SIZE > 0);
-    size_t curr_data_index = 0;
-    for (size_t i = 0; i < count_blocks_for_save; i++)
+    if (is_chain(header_block))
     {
-        if (header_free_block == NULL)
+        const size_t count_blocks_for_save = len / (size_t) MAX_BLOCK_SIZE +
+                                    (len % (size_t) MAX_BLOCK_SIZE > 0);
+        size_t curr_data_index = 0;
+        for (size_t i = 0; i < count_blocks_for_save; i++)
         {
-            elog(ERROR, "Heap buffer overflow");
-            return -1;
+            if (header_block == NULL)
+            {
+                elog(ERROR, "Heap buffer overflow");
+                return -1;
+            }
+
+            memcpy(header_block->block_addr, &buffer[curr_data_index], MAX_BLOCK_SIZE);
+            header_block = header_block->next_header_elem;
+            curr_data_index += MAX_BLOCK_SIZE;
         }
-
-        memcpy(header_free_block->block_addr, &data[curr_data_index], MAX_BLOCK_SIZE);
-        header_free_block = header_free_block->next_header_elem;
-        curr_data_index += MAX_BLOCK_SIZE;
     }
-
-    return 0;
+    else
+    {
+        memcpy(header_block->block_addr, buffer, MAX_BLOCK_SIZE);
+    }
 }
 
 /**
- * \brief free one block
+ * \brief free one block or chain
  * \param [in] block_addr - address of block we should free
  */
-extern void OOS_free_block(const void *block_addr)
-{  
-    Header_elem *header_free_block = get_block_header(block_addr);
-    if (header_free_block == NULL || header_free_block->is_free)
-    {
-        return;
-    }
-
-    header_free_block->is_free = true;
-}
-
-/**
- * \brief free all chain
- * \param [in] block_addr - address of chain start block
- */
-extern void OOS_free_chain(const void *block_addr)
+extern void OOS_free(const void *addr)
 {
-    Header_elem *header_free_block = get_block_header(block_addr);
+    Header_elem *header_free_block = get_block_header(addr);
     if (header_free_block == NULL || header_free_block->is_free)
     {
         return;
     }
 
-    Header_elem *curr_block;
-    header_free_block->is_free = true;
-    while (header_free_block->next_header_elem != NULL)
+    if (is_chain(addr))
     {
-        curr_block = header_free_block;
+        Header_elem *curr_block;
         header_free_block->is_free = true;
-        header_free_block = header_free_block->next_header_elem;
-        curr_block->next_header_elem = NULL;
-        curr_block->is_free = true;
-    }
+        while (header_free_block->next_header_elem != NULL)
+        {
+            curr_block = header_free_block;
+            header_free_block->is_free = true;
+            header_free_block = header_free_block->next_header_elem;
+            curr_block->next_header_elem = NULL;
+            curr_block->is_free = true;
+        }
     
-
-    header_free_block->is_free = true;
+        header_free_block->is_free = true;
+    }
+    else
+    {
+        header_free_block->is_free = true;
+    }
 }
 
 /**

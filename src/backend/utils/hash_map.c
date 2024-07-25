@@ -8,6 +8,8 @@
 // Max count hash keys in hash table
 #define COUNT_ELEMENTS_IN_ARRAY 256
 
+#define PQUEUE_SIZE 8
+
 // Polynomial hash function.
 int hash_function(const char *string)
 {
@@ -28,88 +30,102 @@ int hash_function(const char *string)
     return hash % COUNT_ELEMENTS_IN_ARRAY;
 }
 
-Values_chain_ptr create_chain_of_values()
+/**
+ * \brief first elem is child and second is parent
+ */
+void swap(Priority_queue_elem *child, Priority_queue_elem *parent)
 {
+    Priority_queue_elem tmp = *child;
+    *child = *parent;
+    *parent = tmp;
+}
+
+void shift_up(Pqueue_ptr pqueue, int i)
+{
+    while ((pqueue->data[i]).priority < (pqueue->data[(i - 1) / 2]).priority)
+    {
+        swap(&(pqueue->data[i]), &(pqueue->data[(i - 1) / 2]));
+        i = (i - 1) / 2;
+    }
+}
+
+Pqueue_ptr create_pquque()
+{   
+    Pqueue_ptr pqueue = (Pqueue_ptr) malloc(sizeof(Pqueue));
+    assert(pqueue != NULL);
+
+    pqueue->data = (Priority_queue_ptr) malloc(sizeof(Priority_queue_elem) * PQUEUE_SIZE);
+    assert(pqueue->data != NULL);
+
+    pqueue->curr_size = 0;
+    pqueue->size = PQUEUE_SIZE;
+
+    return pqueue;
+}
+
+void reallocate_pqueue(Pqueue_ptr pqueue)
+{   
+    pqueue->data = (Priority_queue_ptr) realloc(pqueue->data,
+                                                pqueue->size * sizeof(Priority_queue_elem) * 2);
+    assert(pqueue->data != NULL);
+
+    printf("Here\n");
+
+    pqueue->size *= 2;
+}
+
+void insert_value_to_pqueue(Pqueue_ptr pqueue, void *value, char *key, int priority)
+{
+    ++pqueue->curr_size;
+    if (pqueue->curr_size > pqueue->size)
+    {
+        reallocate_pqueue(pqueue);
+    }
+
+    strcpy(pqueue->data[pqueue->curr_size - 1].key_str, key);
+    pqueue->data[pqueue->curr_size - 1].priority = priority;
+    pqueue->data[pqueue->curr_size - 1].value = value;
+
+    shift_up(pqueue, pqueue->curr_size - 1);
+}
+
+void *get_pqueue_element(Pqueue_ptr pqueue, const char *key)
+{
+    for (size_t i = 0; i < pqueue->curr_size; i++)
+    {
+        if (!strcmp((pqueue->data[i]).key_str, key))
+        {
+            return (pqueue->data[i]).value;
+        }
+    }
+
     return NULL;
 }
 
-void push_value_to_chain(Values_chain_ptr *values, void *elem, char *key)
+void *pqueue_min(Pqueue_ptr pqueue)
 {
-    if (*values == NULL)
-    {
-        *values = (Values_chain_ptr) malloc(sizeof(Values_chain_elem));
-        (*values)->next = NULL;
-        (*values)->prev = NULL;
-        (*values)->value = elem;
-        strcpy((*values)->key_str, key);
-    }
-    else
-    {
-        Values_chain_ptr curr_link = *values;
-        while (curr_link->next != NULL)
-        {
-            curr_link = curr_link->next;
-        }
-
-        curr_link->next = (Values_chain_ptr) malloc(sizeof(Values_chain_elem));
-        (curr_link->next)->next = NULL;
-        (curr_link->next)->prev = curr_link;
-        (curr_link->next)->value = elem;
-        strcpy((curr_link->next)->key_str, key);
-    }
+    return pqueue->data[0].value;
 }
 
-void *get_chain_element(Values_chain_ptr values, const char *key)
-{
-    Values_chain_ptr curr_link = values;
-    while (curr_link != NULL)
-    {
-        if (!strcmp(curr_link->key_str, key))
-        {
-            return curr_link->value;
-        }
-
-        curr_link = curr_link->next;
-    }
-
-    return NULL;
-}
-
-void *chain_top(Values_chain_ptr values)
-{
-    return values->value;
-}
-
-void destroy_chain(Values_chain_ptr *values)
+void destroy_pqueue(Pqueue_ptr pqueue)
 {   
-    Values_chain_ptr curr_link;
-    while (*values != NULL)
-    {   
-        curr_link = *values;
-        *values = (*values)->next;
-        free(curr_link);
-    }
+    free(pqueue->data);
+    free(pqueue);
 }
 
-size_t get_chain_size(Values_chain_ptr values)
+size_t get_pqueue_size(Pqueue_ptr pqueue)
 {   
-    Values_chain_ptr curr_link = values;
-    size_t size = 0;
-    while (curr_link != NULL)
-    {   
-        ++size;
-        curr_link = curr_link->next;
-    }
-
-    return size;
+    return pqueue->curr_size;
 }
 
 extern Hash_map_ptr create_map()
 {
     Hash_map_ptr map = (Hash_map_ptr) calloc(COUNT_ELEMENTS_IN_ARRAY, sizeof(Hash_map_elem));
+    assert(map != NULL);
+
     for (size_t i = 0; i < COUNT_ELEMENTS_IN_ARRAY; i++)
     {
-        map[i].values = create_chain_of_values();
+        map[i].values = create_pquque();
     }
     
     return map;
@@ -119,24 +135,24 @@ extern void *get_map_element(Hash_map_ptr map, const char *key)
 {   
     int key_index = hash_function(key);
     void *value = NULL;
-    size_t count_similar_values = get_chain_size(map[key_index].values);
+    size_t count_similar_values = get_pqueue_size(map[key_index].values);
 
     if (count_similar_values == 1)
     {
-        value = chain_top(map[key_index].values);
+        value = pqueue_min(map[key_index].values);
     }
     else if (count_similar_values > 1)
     {
-        value = get_chain_element(map[key_index].values, key);
+        value = get_pqueue_element(map[key_index].values, key);
     }
 
     return value;
 }
 
-extern void push_to_map(Hash_map_ptr map, char *key, void *value)
+extern void push_to_map_with_priority(Hash_map_ptr map, char *key, void *value, int priority)
 {
     int key_index = hash_function(key);
-    push_value_to_chain(&map[key_index].values, value, key);
+    insert_value_to_pqueue(map[key_index].values, value, key, priority);
 }
 
 extern void destroy_map(Hash_map_ptr *map)
@@ -145,7 +161,7 @@ extern void destroy_map(Hash_map_ptr *map)
 
     for (size_t i = 0; i < get_map_size(*map); i++)
     {
-        free((*map)[i].values);
+        destroy_pqueue((*map)[i].values);
     }
     
     free(*map);
