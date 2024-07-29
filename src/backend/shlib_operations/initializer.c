@@ -6,17 +6,35 @@
 #include <assert.h>
 #include "../../include/utils/stack.h"
 #include "../../include/shlib_operations/operations.h"
+#include "../../include/logger/logger.h"
+#include "../../include/boss_operations/boss_operations.h"
 
+/**
+    \brief Initialize all extensions (call init function with some args)
+    \param [in] lib_stack - stack which contains shared libraries handles
+    \param [in] args - arguments for extension init function
+    \return nothing
+*/
 extern void init_all_exetensions(Stack_ptr lib_stack)
 {   
     assert(lib_stack != NULL);
 
     Stack_ptr curr_stack = lib_stack;
+    Boss_op_func *op_func = malloc(sizeof(Boss_op_func));
+    op_func->cache_write_op = cache_write_op;
+    op_func->print_cache_op = print_cache_op;
     for (size_t i = 0; i < get_stack_size(lib_stack); i++)
     {
         void (*function)() = dlsym(curr_stack->data, "init");
-        function();
+        if (function == NULL)
+        {
+            elog(WARN, dlerror());
+            goto next_stack_elem_lable;
+        }
+        function(op_func);
 
+next_stack_elem_lable:
         curr_stack = curr_stack->next_elem;
     }
+    free(op_func);
 }

@@ -9,17 +9,17 @@
 #include <sys/types.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include "../../include/logger/logger.h"
 #include "../../include/guc/guc.h"
 
-// move it into config
-//#define LOG_CAP 10 //8 * 1024
-//#define LOG1_FILE_NAME "log/oos_proxy_1.log"
-//#define LOG2_FILE_NAME "log/oos_proxy_2.log"
-//#define LOG_DIR_NAME "log"
-//#define INFO_IN_LOG 1
+// Size of buffer with current time
 #define TIME_BUFFER_SIZE 100
+
+// Size of buffer with current date
 #define DATE_BUFFER_SIZE 50
+
+// Size of buffer with timezone name
 #define OFFSET_BUFFER_SIZE 5
 
 // if system macros is __USE_MUSC undefined
@@ -33,14 +33,16 @@ enum
   };
 #endif
 
+// This struct describe log file
 typedef struct log_file {
-    FILE *file;
-    char log_file_name[2][MAX_CONFIG_VALUE_SIZE];
-    int curr_log_file;
+    FILE *file; // Log file that is open now
+    char log_file_name[2][MAX_CONFIG_VALUE_SIZE]; // Names of both log files
+    int curr_log_file; // Index of current log file name
 } Log_file;
 
 Log_file *log_file;
 
+// Close current log file and rewrite new log file
 inline void swap_log_files()
 {   
     fclose(log_file->file);
@@ -56,6 +58,7 @@ inline void swap_log_files()
     }
 }
 
+// Get string representation of E_LEVEL
 char *get_str_elevel(E_LEVEL level)
 {
     switch(level)
@@ -77,6 +80,8 @@ char *get_str_elevel(E_LEVEL level)
 
 /**
  * \brief Check is log file full
+ * \return -1 if file_number is wrong. 1 if file size excced capacity of log files
+ * 0 if file is not full.
  */
 int log_file_full(int file_number)
 {   
@@ -97,7 +102,15 @@ int log_file_full(int file_number)
     return 0;
 }
 
-extern void elog(E_LEVEL level, const char *format, ...)
+/**
+ * \brief Write something into .log file
+ * \param [in] level - log level
+ * \param [in] filename - name of file where the error occurred
+ * \param [in] line_number - line where the error occurred
+ * \param [in] format - formated string
+ * \return nothing
+ */
+extern void write_log(E_LEVEL level, const char *filename, int line_number, const char *format, ...)
 {   
     time_t log_time = time(NULL);
     struct tm *now = localtime(&log_time);
@@ -118,19 +131,50 @@ extern void elog(E_LEVEL level, const char *format, ...)
         swap_log_files();
     }
 
+    va_list args;
+    va_start(args, format);
+
     if (level == INFO)
     {
         Guc_data info_in_log = get_config_parameter("info_in_log");
         if (!info_in_log.num)
         {
+            write_stderr(format, args);
             return;
         }
     }
 
-    fprintf(log_file->file, "%s %s %s: %s %s%c", date, time, offset,
-        get_str_elevel(level), format, '\n');
+    fprintf(log_file->file, "%s %s %s | %s: \"", date, time, offset,
+        get_str_elevel(level));
+    vfprintf(log_file->file, format, args);
+    fprintf(log_file->file, "\" in file: %s, line: %d\n", filename, line_number);
+    fflush(log_file->file);
+    
+    va_end(args);
 }
 
+/**
+ * \brief Write something into stderr (if log file was not initialized or
+ *          error level is INFO)
+ * \param [in] format - formated string
+ * \return nothing
+ */
+extern void write_stderr(const char *format, ...)
+{
+    va_list	args;
+
+	va_start(args, format);
+
+	vfprintf(stderr, format, args);
+	fflush(stderr);
+
+    va_end(args);
+}
+
+/**
+ * \brief Initialize logger
+ * \return nothing
+ */
 extern void init_logger()
 {
     if (close(STDERR_FILENO) < 0)
@@ -149,6 +193,8 @@ extern void init_logger()
     DIR *source = opendir(".");
     struct dirent* entry;
 
+    // Check if log directory alredy exists
+    // Add checking if log files exists
     while ((entry = readdir(source)) != NULL)
     {
         if (!strcmp(entry->d_name, log_dir_name.str) && entry->d_type == DT_DIR)
@@ -172,10 +218,11 @@ extern void init_logger()
         is_log_file_full[0] = log_file_full(0) > 0;
         is_log_file_full[1] = log_file_full(1) > 0;
         
-        if (is_log_file_full[0] && !is_log_file_full[1])
+        // we should check if second log file is not full
+        /*if (is_log_file_full[0] && !is_log_file_full[1])
         {
             log_file->curr_log_file = 1;
-        }
+        }*/
     }
     else
     {   
@@ -198,6 +245,9 @@ extern void init_logger()
     }
 }
 
+/**
+ * \brief Stop write logs
+ */
 extern void stop_logger()
 {
     fclose(log_file->file);
