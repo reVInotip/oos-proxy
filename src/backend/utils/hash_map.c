@@ -11,7 +11,7 @@
 #define PQUEUE_SIZE 8
 
 // Polynomial hash function.
-int hash_function(const char *string)
+static int hash_function(const char *string)
 {
     const long mod = 1e9 + 7;
     const int k = 31;
@@ -33,14 +33,14 @@ int hash_function(const char *string)
 /**
  * \brief first elem is child and second is parent
  */
-void swap(Priority_queue_elem *child, Priority_queue_elem *parent)
+static void swap(Priority_queue_elem *child, Priority_queue_elem *parent)
 {
     Priority_queue_elem tmp = *child;
     *child = *parent;
     *parent = tmp;
 }
 
-void shift_up(Pqueue_ptr pqueue, int i)
+static void shift_up(Pqueue_ptr pqueue, int i)
 {
     while ((pqueue->data[i]).priority < (pqueue->data[(i - 1) / 2]).priority)
     {
@@ -49,7 +49,7 @@ void shift_up(Pqueue_ptr pqueue, int i)
     }
 }
 
-Pqueue_ptr create_pquque()
+static Pqueue_ptr create_pquque()
 {   
     Pqueue_ptr pqueue = (Pqueue_ptr) malloc(sizeof(Pqueue));
     assert(pqueue != NULL);
@@ -63,7 +63,7 @@ Pqueue_ptr create_pquque()
     return pqueue;
 }
 
-void reallocate_pqueue(Pqueue_ptr pqueue)
+static void reallocate_pqueue(Pqueue_ptr pqueue)
 {   
     pqueue->data = (Priority_queue_ptr) realloc(pqueue->data,
                                                 pqueue->size * sizeof(Priority_queue_elem) * 2);
@@ -74,7 +74,7 @@ void reallocate_pqueue(Pqueue_ptr pqueue)
     pqueue->size *= 2;
 }
 
-void insert_value_to_pqueue(Pqueue_ptr pqueue, void *value, char *key, int priority)
+static void insert_value_to_pqueue(Pqueue_ptr pqueue, void *value, char *key, int priority)
 {
     ++pqueue->curr_size;
     if (pqueue->curr_size > pqueue->size)
@@ -89,7 +89,7 @@ void insert_value_to_pqueue(Pqueue_ptr pqueue, void *value, char *key, int prior
     shift_up(pqueue, pqueue->curr_size - 1);
 }
 
-void *get_pqueue_element(Pqueue_ptr pqueue, const char *key)
+static void *get_pqueue_element(Pqueue_ptr pqueue, const char *key)
 {
     for (size_t i = 0; i < pqueue->curr_size; i++)
     {
@@ -102,18 +102,18 @@ void *get_pqueue_element(Pqueue_ptr pqueue, const char *key)
     return NULL;
 }
 
-void *pqueue_min(Pqueue_ptr pqueue)
+static void *pqueue_min(Pqueue_ptr pqueue)
 {
     return pqueue->data[0].value;
 }
 
-void destroy_pqueue(Pqueue_ptr pqueue)
+static void destroy_pqueue(Pqueue_ptr pqueue)
 {   
     free(pqueue->data);
     free(pqueue);
 }
 
-size_t get_pqueue_size(Pqueue_ptr pqueue)
+static size_t get_pqueue_size(Pqueue_ptr pqueue)
 {   
     return pqueue->curr_size;
 }

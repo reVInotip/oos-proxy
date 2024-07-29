@@ -13,32 +13,73 @@
 #include "../include/logger/logger.h"
 #include "../include/guc/guc.h"
 #include "../include/memory/allocator.h"
+#include "../include/memory/cache.h"
 
 void test_alloc()
 {
-    char **addr = (char **) OOS_allocate_block();
-    printf("%p\n", addr);
-    OOS_allocate_chain((void **) addr, 2, 2);
-    *(addr[0]) = 5;
-    *(addr[1]) = 4;
-    printf("%p %d, %p %d\n", addr[0], *(addr[0]),  addr[1], *(addr[1]));
-    char data[64 * 2];
-    memset(data, 'b', 64);
-    memset(&data[64], 'a', 64);
-    printf("%s\n", data);
-    OOS_save_to_chain((void *) addr[0], 64 * 2, data);
-    printf("%p %s, %p %s\n", addr[0], addr[0],  addr[1], addr[1]);
-    printf("Here\n");
-    OOS_free_chain((void *) addr[0]);
-    OOS_free_block(addr);
-    print_OOS_alloc_mem();
+    print_alloc_mem();
+    int *a = OOS_allocate(4 * sizeof(int));
+    a[0] = 1;
+    a[1] = 2;
+    a[2] = 3;
+    a[3] = 4;
+    printf("%d\n", a[3]);
+    print_alloc_mem();
+
+    int *b = OOS_allocate(10 * sizeof(int));
+    b[9] = 11;
+    printf("%d\n", b[9]);
+    print_alloc_mem();
+
+    int *c = OOS_allocate(5 * sizeof(int));
+    c[4] = 50;
+    printf("%d\n", c[4]);
+    print_alloc_mem();
+
+    printf("===================================================\n");
+    OOS_free(b);
+    print_alloc_mem();
+
+    int *d = OOS_allocate(15 * sizeof(int));
+    d[4] = 50;
+    printf("%d\n", d[4]);
+    print_alloc_mem();
+
+    int *e = OOS_allocate(8 * sizeof(int));
+    e[1] = 50;
+    printf("%d\n", e[1]);
+    print_alloc_mem();
+
+    printf("===================================================\n");
+    OOS_free(d);
+    print_alloc_mem();
+
+    printf("===================================================\n");
+    OOS_free(c);
+    print_alloc_mem();
+
+    printf("===================================================\n");
+    OOS_free(a);
+    print_alloc_mem();
+
+    printf("===================================================\n");
+    OOS_free(e);
+    print_alloc_mem();
+}
+
+void test_cache()
+{   
+    char buffer[13];
+    cache_write("aaaaaa", "Hello world\n", 13, 100000000);
+    cache_read("aaaaaa", buffer, 13);
+    printf("%s", buffer);
 }
 
 int main(int argc, char *argv[]) {
     parse_config();
     init_logger();
-    init_OOS_allocator();
-    //test_alloc();
+    init_cache();
+    test_cache();
     elog(LOG, "Logger inited successfully");
 
     Guc_data base_dir = get_config_parameter("base_dir");

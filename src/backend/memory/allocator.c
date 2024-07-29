@@ -4,364 +4,419 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <limits.h>
 #include "../../include/logger/logger.h"
-#include "../../include/memory/allocator.h"
 #include "../../include/guc/guc.h"
+#include "../../include/memory/allocator.h"
+#include "../../include/memory/cache_errno.h"
 
-void *allocated_memory_ptr;
-void *start_addr;
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+
+extern enum cache_err_num cache_errno;
+
+// limit on the block size that we can allocate in RAM
+// if it is exceeded then the cache file is used
+#define MAX_RAM_BLOCK_SIZE 1024 //1 Kb;
+
+// the number of extra bytes that can be allocated for a block in RAM
+#define ALLOWABLE_OFFSET 2
+
+// pointer to start of user availiable memory section
+void *start_ptr;
+
+// pointer to all allocated memory
+void *main_ptr;
+
+// check if block is pointer to cache file
+#define is_file(bool_field) ((bool_field & 0b10000000) >= 1)
+
+// check if block is free
+#define is_free(bool_field) ((bool_field & 0b01000000) >= 1)
+
+// set that block is file pointer
+#define set_file(bool_field) \
+    do { \
+        bool_field = bool_field | 0b10000000; \
+    } while (0)
+
+// set that block is free
+#define set_free(bool_field) \
+    do { \
+        bool_field = bool_field | 0b01000000; \
+    } while (0)
+
+// set that block is not free
+#define set_not_free(bool_field) \
+    do { \
+        bool_field = bool_field & 0b10111111; \
+    } while (0)
+
+// set that block is not file
+#define set_not_file(bool_field) \
+    do { \
+        bool_field = bool_field & 0b01111111; \
+    } while (0)
 
 /**
- * \brief This structure describe element of header (user can not interact with it)
- * \details
- *      block_addr - virtual address of block start
- *      next_header_element - pointer to next header element of chain (NULL by default)
- *      is_free - is block free?
- *      is_file - if block contains pointer to FILE (false by default)
+ * \brief Maximum binary heap of free blocks
+ * \details I maximum binary heap to save pointers on free blocks of memory.
+ * This is necessary to quickly search, change and delete free blocks. The queue is stored before the block accessible
+ * to the user (start_ptr points to it).(((size_t) max_allocation_size.num) / (sizeof(Block_header) + 1)) / 2 + 1
  */
-typedef struct header_elem
-{
-    void *block_addr;
-    struct header_elem *next_header_elem;
-    bool is_free;
-    bool is_file;
-} Header_elem;
+typedef struct heap_elem
+{   
+    int64_t        free_block_size; // size is used as key fro heap
+    Block_header *block_header_ptr;
+} Heap_elem;
 
 /**
- * \brief Find first free block address
- * \return Header of first free block
+ * \brief Meta data of heap
+ * \details curr_size - curr_size of heap
+ *          size - max size of heap. It`s calculated by the formula:
+ * MAX_POSSIBLE_COUNT_OF_BLOCKS * SIZE_OF_THIS_STRUCT. First constant calculated by the formula:
+ * (MAX_ALLOCATION_SIZE / (SIZE_OF_THIS_STRUCT + 1)) / 2 + 1. The idea is that the maximum possible number
+ * of blocks is obtained by interleaving blocks of the minimum size. Therefore, we cut the resulting quantity in half.
+ * Minimus size of block is SIZE_OF_THIS_STRUCT + 1. One is added to round the resulting value up.
  */
-Header_elem *get_free_block_addr()
+typedef struct heap_meta_data
 {
-    Header_elem *curr_ptr = (Header_elem *) allocated_memory_ptr;
-    while (curr_ptr != start_addr)
-    {
-        if (curr_ptr->is_free)
-        {
-            return curr_ptr;
-        }
-        
-        ++curr_ptr;
-    }
+    int64_t curr_size;
+    int64_t      size;
+} Heap_meta_data;
 
-    return NULL;
+/**
+ * \brief Swap two element of heap
+ */
+static void swap(Heap_elem *heap, int i, int j)
+{
+    // Also take into account the rearrangement in the structure of the blocks themselves
+    heap[i].block_header_ptr->block_index = j;
+    heap[j].block_header_ptr->block_index = i;
+
+    Heap_elem tmp = heap[i];
+    heap[i] = heap[j];
+    heap[j] = tmp;
 }
 
 /**
- * \brief Get block header by its address
- * \param [in] block_addr - address of the block whose header
- *                          we want to receive
- * \return Header of block with address - block_addr
+ * \brief Get a pointer to a heap from a pointer to allocated memory
  */
-Header_elem *get_block_header(const void *block_addr)
+static inline Heap_elem *get_heap()
 {
-    Header_elem *curr_ptr = (Header_elem *) allocated_memory_ptr;
-    while (curr_ptr != start_addr)
+    return (Heap_elem *) ((char *) main_ptr + sizeof(Heap_meta_data));
+}
+
+/**
+ * \brief Get a pointer to a heap meta data from a pointer to allocated memory
+ */
+static inline Heap_meta_data *get_heap_meta_data()
+{
+    return (Heap_meta_data *) main_ptr;
+}
+
+// ===== heap balancing procedures =====
+
+/**
+ * \brief If the value of an element has increased, then we move it up the heap in this function
+ * \param [in] i - index if this element
+ * \return New index of this element
+ */
+static int shift_up(int i)
+{
+    Heap_elem *heap = get_heap();
+    while (heap[i].free_block_size > heap[(i - 1) / 2].free_block_size)
     {
-        if (curr_ptr->block_addr == block_addr)
-        {
-            return curr_ptr;
-        }
-        
-        ++curr_ptr;
+        swap(heap, i, (i - 1) / 2);
+        i = (i - 1) / 2;
     }
 
-    return NULL;
+    return i;
+}
+
+/**
+ * \brief If the value of an element has decreased, then we move it down the heap in this function
+ * \param [in] i - index if this element
+ * \return New index of this element
+ */
+static int shift_down(int i)
+{   
+    Heap_elem *heap = get_heap();
+    Heap_meta_data *meta_data = get_heap_meta_data();
+
+    int left = 0;
+    int right = 0;
+    int j = 0;
+    while (2 * i + 1 < meta_data->curr_size)
+    {
+        left = 2 * i + 1;
+        right = 2 * i + 2;
+        j = left;
+        if (right < meta_data->curr_size &&
+            heap[right].free_block_size > heap[left].free_block_size)
+        {
+            j = right;
+        }
+
+        if (heap[i].free_block_size >= heap[j].free_block_size)
+        {
+            break;
+        }
+
+        swap(heap, i, j);
+        i = j;
+    }
+
+    return i;
+}
+
+/**
+ * \brief Insert new free block to heap
+ * \details We add this block to the end of the heap and move it up the heap as long as we can
+ * \param [in] free_block_header_ptr - pointer to the block to be added
+ * \param [in] block_size - size of this block (key for this heap)
+ * \return Index in heap of this block
+ */
+static int insert_value_to_heap(Block_header *free_block_header_ptr, size_t block_size)
+{
+    Heap_elem *heap = get_heap();
+    Heap_meta_data *meta_data = get_heap_meta_data();
+
+    if (meta_data->curr_size >= meta_data->size)
+    {
+        return 0;
+    }
+    ++meta_data->curr_size;
+
+    heap[meta_data->curr_size - 1].block_header_ptr = free_block_header_ptr;
+    heap[meta_data->curr_size - 1].free_block_size = block_size;
+
+    return shift_up(meta_data->curr_size - 1);
+}
+
+
+/**
+ * \brief Delete free block from heap
+ * \details We replace the block being removed with a block from the end and
+ * move it down the heap as long as we can
+ * \param [in] i - block index to delete
+ */
+static void delete_value_from_heap(int i)
+{
+    Heap_elem *heap = get_heap();
+    Heap_meta_data *meta_data = get_heap_meta_data();
+
+    if (meta_data->curr_size == 0)
+    {
+        return;
+    }
+
+    heap[i] = heap[meta_data->curr_size - 1];
+    --meta_data->curr_size;
+    shift_down(i);
+}
+
+/**
+ * \brief Linear search for a free block of size >= then block_size (param) on the heap
+ * \note I was thinking about sorting the heap (like heap sort) and then searching
+ * for the element using binary search, but it seems like a simple linear search
+ * would be faster. I also thought about using red-black trees for logarithmic element
+ * searching, but decided that I didn't have enough time to do it.
+ * \param [in] block_size - the size of the block we need
+ * \return Block index of the most suitable size
+ */
+static int get_heap_element(const size_t block_size)
+{
+    Heap_elem *heap = get_heap();
+    Heap_meta_data *meta_data = get_heap_meta_data();
+    int last_preferred_element = 0;
+
+    for (size_t i = 0; i < meta_data->size; i++)
+    {
+        if (heap[i].free_block_size == block_size)
+        {
+            return i;
+        }
+        else if (heap[i].free_block_size > block_size)
+        {
+            last_preferred_element = i;
+        }
+    }
+
+    return last_preferred_element;
+}
+    
+/**
+ * \brief Quickly check whether memory of a given size can be
+ * allocated (possible due to the properties of the maximum binary heap)
+ * \param [in] block_size - size of memory we want to allocate
+ * \return Can we allocate this memory?
+ */
+extern bool check_is_mem_availiable(const size_t block_size)
+{
+    Heap_elem *heap = get_heap();
+    Heap_meta_data *meta_data = get_heap_meta_data();
+
+    if (meta_data->size == 0)
+    {
+        return false;
+    }
+
+    return heap[0].free_block_size >= block_size;
 }
 
 /**
  * \brief Initialize allocator
+ * \details mmap new region of size MAX_ALLOCATION_SIZ (sets in config) +
+ * META_INFO_SIZE (size of heap and it meta data)
  * \return -1 if something went wrong, 0 if all is OK
  */
 extern int init_OOS_allocator()
 {
     Guc_data max_allocation_size = get_config_parameter("memory_for_cache");
+    size_t max_count_of_free_blocks = (((size_t) max_allocation_size.num) / (sizeof(Block_header) + 1)) / 2 + 1;
 
-    size_t header_elem_size = sizeof(Header_elem);
-    size_t count_blocks = max_allocation_size.num / MAX_BLOCK_SIZE;
-    size_t header_size = count_blocks * header_elem_size;
-
-    // allocate memory for header and pointers for blocks
-    // this region will be private and anonymous (not mapped on file)
-    // with access to read and write
-    allocated_memory_ptr = mmap(NULL, sizeof(void *) * count_blocks + header_size,
-                                PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS,
-                                -1, 0);
-    if (allocated_memory_ptr == MAP_FAILED)
+    main_ptr = mmap(NULL, max_allocation_size.num + max_count_of_free_blocks * sizeof(Heap_elem) + sizeof(Heap_meta_data),
+                                PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (main_ptr == MAP_FAILED)
     {
         elog(ERROR, "Error while allocating memory: %s", strerror(errno));
         return -1;
     }
+    // initialize heap meta data
+    Heap_meta_data *meta_data = get_heap_meta_data();
+    meta_data->curr_size = 0;
+    meta_data->size = max_count_of_free_blocks;
 
-    // fill this memory
-    Header_elem *curr_ptr = (Header_elem *) allocated_memory_ptr;
-    for (size_t i = 0; i < count_blocks; i++)
-    {
-        // all blocks also will be private and anonymous
-        // with access to read and write
-        curr_ptr->block_addr = mmap(NULL, MAX_BLOCK_SIZE, PROT_READ | PROT_WRITE,
-                                    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-        if (curr_ptr->block_addr == MAP_FAILED)
-        {
-            elog(ERROR, "Error while allocating memory: %s", strerror(errno));
-            return -1;
-        }                            
-        curr_ptr->is_file = false;
-        curr_ptr->is_free = true;
-        curr_ptr->next_header_elem = NULL;
+    start_ptr = (char *) main_ptr + max_count_of_free_blocks * sizeof(Heap_elem) + sizeof(Heap_meta_data);
 
-        ++curr_ptr;
-    }
-    
+    // by default we have only one large block which will be splited if necessary
+    Block_header *main_header_ptr = (Block_header *) start_ptr;
+    main_header_ptr->block_size = max_allocation_size.num - sizeof(Block_header);
+    main_header_ptr->bool_constants = 0;
+    main_header_ptr->next_block = NULL;
+    main_header_ptr->prev_block = NULL;
+    main_header_ptr->block_index = 0;
+    set_free(main_header_ptr->bool_constants);
 
-    start_addr = curr_ptr;
+    main_header_ptr->block_index = insert_value_to_heap(main_header_ptr, main_header_ptr->block_size);
 
-    return 0;  
+    return 0;
 }
 
-extern bool is_chain(Header_elem *block_or_chain)
+/**
+ * \details Split block if it necessary. If we can`t split block we return pointer to block given to us.
+ * If we can we return pointer to new block. In both cases the returned block will be marked as not free
+ * \param [in] block_header - header to block for split
+ * \param [in] i - index of this block in heap
+ * \param [in] size - required block size
+ * \return Pointer to allocated block
+ */
+void *split_block_if_it_possible(Block_header *block_header, int i, const size_t size)
 {
-    return block_or_chain->next_header_elem != NULL;
+    // Check if we can split this block. The size of the original block must be no less than the size required of
+    // the block + the size of the header for the new block + the minimum size that must remain for the old
+    // block (ALLOWABLE_OFFSET). The correctness of the inequality without taking into account the constant (ALLOWABLE_OFFSET)
+    // is guaranteed..
+    if (block_header->block_size >= size + ALLOWABLE_OFFSET + sizeof(Block_header))
+    {
+        delete_value_from_heap(i);
+        set_not_free(block_header->bool_constants);
+        return (char *) block_header + sizeof(Block_header);
+    }
+
+    // we add the size of block header to shift the pointer and subtract it to get the length of the new block
+    Block_header *new_block = (Block_header *) ((char *) block_header + block_header->block_size - size);
+    new_block->block_size = size;
+    new_block->bool_constants = 0;
+    new_block->next_block = block_header->next_block;
+    new_block->prev_block = block_header;
+
+    if (new_block->next_block != NULL)
+    {
+        new_block->next_block->prev_block = new_block;
+    }
+
+    block_header->next_block = new_block;
+    block_header->block_size = block_header->block_size - size - sizeof(Block_header);
+
+    Heap_elem *heap = get_heap();
+    heap[i].free_block_size = block_header->block_size - sizeof(Block_header);
+
+    block_header->block_index = shift_down(i);
+
+    return (char *) new_block + sizeof(Block_header);
 }
 
 /**
  * \brief Allocate memory
  * \param [in] count_blocks - count blocks for allocate
  * \note if count_blocks == 1 allocate block else allocate chain
- * \return NULL if something went wrong, pointer to start block of chain if all is OK
+ * \return NULL if there is not enough space in the cache for a block of this size,
+ * pointer to start block if all is OK. If cache runs out of free space or block size to large
+ * then cache_errno enum variable will receive the corresponding code. This is a signal that it's
+ * time to call LRU.
  */
-extern void *OOS_allocate(const size_t count_blocks)
+extern void *OOS_allocate(const size_t size)
 {
-    if (count_blocks <= 0)
+    Heap_elem *heap = get_heap();
+    if (!check_is_mem_availiable(size))
     {
-        return NULL;
-    }
-    else if (count_blocks == 1)
-    {
-        return OOS_allocate_block();
-    }
-
-    return OOS_allocate_chain(count_blocks);
-}
-
-/**
- * \brief Allocate only one block from pool
- * \return Pointer to start of this block or NULL
- */
-void *OOS_allocate_block()
-{
-    Header_elem *header_of_free_block = get_free_block_addr();
-
-    if (header_of_free_block == NULL)
-    {
-        elog(ERROR, "Heap buffer overflow");
+        elog(ERROR, "No free space in cache");
+        cache_errno = NO_FREE_SPACE;
         return NULL;
     }
 
-    header_of_free_block->is_free = false;
+    int index = get_heap_element(size + sizeof(Block_header));
+    void *free_block = split_block_if_it_possible(heap[index].block_header_ptr, index, size);
 
-    return header_of_free_block->block_addr;
+    return free_block;
 }
 
 /**
- * \brief Allocate chain of blocks
- * \param [in] count_blocks - count blocks for allocate
- * \return NULL if something went wrong, pointer to start block of chain if all is OK
- * \note Addresses are written to the array in order by block number in the chain
- */
-void *OOS_allocate_chain(const size_t count_blocks)
-{
-    Header_elem *header_of_free_block = get_free_block_addr();
-    if (header_of_free_block == NULL)
-    {
-        elog(ERROR, "Heap buffer overflow");
-        return NULL;
-    }
-    void *start = header_of_free_block->block_addr;
-
-    Header_elem *chain_start_block = header_of_free_block;
-    Header_elem *prev_header_block = header_of_free_block;
-
-    for (size_t i = 0; i < count_blocks - 1; i++)
-    {
-        if (header_of_free_block == NULL)
-        {
-            // if we can not allocate another block
-            // we should mark all alredy allocatied blocks like free
-            Header_elem *curr_block;
-            while (chain_start_block != NULL)
-            {   
-                curr_block = chain_start_block;
-                chain_start_block = chain_start_block->next_header_elem;
-                curr_block->next_header_elem = NULL;
-            }
-                
-            elog(ERROR, "Heap buffer overflow");
-            return NULL;
-        }
-        header_of_free_block->is_free = false;
-
-        // get new free block
-        header_of_free_block = get_free_block_addr();
-        prev_header_block->next_header_elem = header_of_free_block;
-        prev_header_block = header_of_free_block;
-    }
-
-    // operations with last allocated free block
-    header_of_free_block->is_free = false;
-    
-    return start;
-}
-
-/**
- * \brief Read data from chain or block
- * \param [in] start_addr - address of block or start address or chain
- * \param [out] buffer - buffer for write reading data
- * \param [in] len - length of buffer
- * \return -1 if something went wrong, 0 if all is OK
- */
-extern int OOS_read(const void *start_addr, char *buffer, const size_t len)
-{
-    assert(start_addr != NULL);
-    
-    Header_elem *header_block = get_block_header(start_addr);
-    if (header_block == NULL || header_block->is_free || len == 0)
-    {
-        return -1;
-    }
-
-    if (header_block->next_header_elem != NULL)
-    {
-        // read from chain
-        const size_t count_blocks_for_read = len / (size_t) MAX_BLOCK_SIZE +
-                                    (len % (size_t) MAX_BLOCK_SIZE > 0);
-        size_t curr_buffer_index = 0;
-        for (size_t i = 0; i < count_blocks_for_read; i++)
-        {
-            if (header_block == NULL)
-            {
-                elog(ERROR, "Invalid pointer");
-                return -1;
-            }
-
-            memcpy(&buffer[curr_buffer_index], header_block->block_addr, MAX_BLOCK_SIZE);
-            header_block = header_block->next_header_elem;
-            curr_buffer_index += MAX_BLOCK_SIZE;
-        }
-    }
-    else
-    {
-        // read from block
-        memcpy(buffer, header_block->block_addr, MAX_BLOCK_SIZE);
-    }
-
-    return 0;
-}
-
-/**
- * \brief Get addresses of each block in chain. You can use it for get inline access to data in chain
- * \param [out] block_addresses - Addresses of blocks from chain
- * \param [in] start_addr - Addresse of chain start
- * \param [in] len - length of array block_addresses
- * \return -1 if something went wrong, 0 if all is OK
- * \note Addresses are written to the array in order by block number in the chain
- */
-extern int OOS_get_chain(void *block_addresses[], const void *start_addr, const size_t len)
-{
-    Header_elem *header_free_block = get_block_header(start_addr);
-    if (header_free_block == NULL || header_free_block->is_free || len == 0)
-    {
-        return -1;
-    }
-
-    for (size_t i = 0; i < len; i++)
-    {
-        if (header_free_block == NULL)
-        {
-            elog(ERROR, "Invalid pointer");
-            return -1;
-        }
-
-        block_addresses[i] = header_free_block->block_addr;
-        header_free_block = header_free_block->next_header_elem;
-    }
-    
-
-    return 0;
-}
-
-/**
- * \brief Save something to chain (subchain) or block that starts with block address start_addr.
- * \details This function !COPY! bytes from data to blocks of chain of simple block. This means that the function works
- * in time linear to the data size. But its use may be more convenient than copying data directly
- * (of course you can do it too)
- * \param [in] start_addr - address of first chain (or subchain) block
- * \param [in] length - length of saved buffer
- * \param [in] data - buffer to save
- * \return -1 if something went wrong, 0 if all is OK
- */
-extern int OOS_write(const void *start_addr, const size_t len, const char *buffer)
-{
-    Header_elem *header_block = get_block_header(start_addr);
-    if (header_block == NULL || header_block->is_free || len == 0)
-    {
-        return -1;
-    }
-
-    if (is_chain(header_block))
-    {
-        const size_t count_blocks_for_save = len / (size_t) MAX_BLOCK_SIZE +
-                                    (len % (size_t) MAX_BLOCK_SIZE > 0);
-        size_t curr_data_index = 0;
-        for (size_t i = 0; i < count_blocks_for_save; i++)
-        {
-            if (header_block == NULL)
-            {
-                elog(ERROR, "Heap buffer overflow");
-                return -1;
-            }
-
-            memcpy(header_block->block_addr, &buffer[curr_data_index], MAX_BLOCK_SIZE);
-            header_block = header_block->next_header_elem;
-            curr_data_index += MAX_BLOCK_SIZE;
-        }
-    }
-    else
-    {
-        memcpy(header_block->block_addr, buffer, MAX_BLOCK_SIZE);
-    }
-}
-
-/**
- * \brief free one block or chain
- * \param [in] block_addr - address of block we should free
+ * \brief Free block by address
+ * \param [in] addr - address of block we should free
  */
 extern void OOS_free(const void *addr)
 {
-    Header_elem *header_free_block = get_block_header(addr);
-    if (header_free_block == NULL || header_free_block->is_free)
+    Block_header *block = (Block_header *) ((char *) addr - sizeof(Block_header));
+    set_free(block->bool_constants);
+
+    // join next block with this block if it possible
+    if (block->next_block != NULL && is_free(block->next_block->bool_constants))
     {
-        return;
+        delete_value_from_heap(block->next_block->block_index);
+        if (block->next_block->next_block != NULL)
+        {
+            block->next_block->next_block->prev_block = block;
+        }
+
+        block->block_size += block->next_block->block_size + sizeof(Block_header);
+        block->next_block = block->next_block->next_block;
     }
 
-    if (is_chain(addr))
-    {
-        Header_elem *curr_block;
-        header_free_block->is_free = true;
-        while (header_free_block->next_header_elem != NULL)
+    // join previous block with this block if it possible
+    if (block->prev_block != NULL && is_free(block->prev_block->bool_constants))
+    {   
+        if (block->next_block != NULL)
         {
-            curr_block = header_free_block;
-            header_free_block->is_free = true;
-            header_free_block = header_free_block->next_header_elem;
-            curr_block->next_header_elem = NULL;
-            curr_block->is_free = true;
+            block->next_block->prev_block = block->prev_block;
         }
-    
-        header_free_block->is_free = true;
+
+        block->prev_block->block_size += block->block_size + sizeof(Block_header);
+        block->prev_block->next_block = block->next_block;
+
+        Heap_elem *heap = get_heap();
+        heap[block->prev_block->block_index].free_block_size = block->prev_block->block_size;
+
+        shift_up(block->prev_block->block_index);
     }
+    // if we can`t join this block we insert to heap
     else
     {
-        header_free_block->is_free = true;
+        block->block_index = insert_value_to_heap(block, block->block_size);
     }
 }
 
@@ -371,37 +426,19 @@ extern void OOS_free(const void *addr)
 extern void destroy_OOS_allocator()
 {
     Guc_data max_allocation_size = get_config_parameter("memory_for_cache");
+    Heap_meta_data *meta_data = get_heap_meta_data();
 
-    size_t count_blocks = max_allocation_size.num / MAX_BLOCK_SIZE;
-    size_t header_size = count_blocks * sizeof(Header_elem);
-
-    Header_elem *start = (Header_elem *) start_addr;
-    for (size_t i = 0; i < count_blocks; i++)
-    {
-        munmap(start->block_addr, MAX_BLOCK_SIZE);
-        ++start;
-    }
-    
-    munmap(allocated_memory_ptr, sizeof(void *) * count_blocks + header_size);
-
-    allocated_memory_ptr = NULL;
-    start_addr = NULL;
+    munmap(main_ptr, max_allocation_size.num + meta_data->size * sizeof(Heap_elem) + sizeof(Heap_meta_data));
 }
 
-/**
- * \brief Function for debug. Printing all info about all blocks
- */
-extern void print_OOS_alloc_mem()
-{
-    Guc_data max_allocation_size = get_config_parameter("memory_for_cache");
-
-    Header_elem *curr_block = (Header_elem *) allocated_memory_ptr;
-    size_t count_blocks = max_allocation_size.num / MAX_BLOCK_SIZE;
-    printf("Block index | Block address | Is free | Is file | Next header element\n");
-    for (size_t i = 0; i < count_blocks; i++)
+extern void print_alloc_mem()
+{   
+    Block_header *curr_block = (Block_header *) start_ptr;
+    printf("Block index | Block address | Block size | Is free | Is file | Next header element | Prev header element\n");
+    while (curr_block != NULL)
     {
-        printf("Block %lu | %p | %d | %d | %p\n", i, curr_block->block_addr,
-                curr_block->is_free, curr_block->is_file, curr_block->next_header_elem);
-        ++curr_block;
+        printf("Block %u | %p | %d | %d | %d | %p | %p\n", curr_block->block_index, (char *) curr_block, curr_block->block_size,
+                is_free(curr_block->bool_constants), is_file(curr_block->bool_constants), curr_block->next_block, curr_block->prev_block);
+        curr_block = curr_block->next_block;
     }
 }

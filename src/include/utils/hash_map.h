@@ -5,11 +5,10 @@
  * To protect against collisions and add multiple values ​​with the same key, a priority
  * queue of a not fixed size is used (this structure was chosen to support working with the cache).
  */
-
-#pragma once
-
 #include <stdlib.h>
 #include "stack.h"
+
+#pragma once
 
 // The maximum number of bytes that can contain a key
 #define MAX_KEY_SIZE 100
@@ -17,6 +16,7 @@
 /**
  * \brief Structure describing the priority queue used to prevent collisions and
  *  add multiple values with the same key
+ * \todo change in to double linked list
  */
 typedef struct priority_queue_elem
 {   

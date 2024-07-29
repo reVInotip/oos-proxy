@@ -2,7 +2,6 @@
  * operations.h
  * This file contains basic operations on shared libraries such as
  * load to shared memory, removal from it and initialization.
- * 
  */
 
 #pragma once

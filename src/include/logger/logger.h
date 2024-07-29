@@ -9,13 +9,12 @@
  * The log message consists of time and date then it was writing, the timezone name or abbreviation,
  * level of this message and formated string
  */
+#include "../../include/guc/guc.h"
 
 #pragma once
 
-#include "../../include/guc/guc.h"
-
 /**
- * \brief Level of log messages
+ * \brief Level of log mess#pragma onceages
  * \details
  * INFO - informing about an event from the user side.
  *      Logging of these messages can be disabled in the config;
@@ -24,6 +23,7 @@
  * WARN - warnings about problems in the program.
  *      They can influence its work;
  * ERROR - error message. Reports critical problems in the program.
+ * TO_DO Add CRITICAL level for emergency termination of the program
  */
 typedef enum e_level {
     INFO = 1,

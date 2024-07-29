@@ -54,3 +54,7 @@ dkms.conf
 oos_proxy
 log/
 docs/
+ideas/
+
+#tmp
+test.c

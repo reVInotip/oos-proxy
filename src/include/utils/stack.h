@@ -3,10 +3,9 @@
  * Structure describing the stack and methods for it.
  * I use it to store handles of shared libraries.
  */
+#include <stdlib.h>
 
 #pragma once
-
-#include <stdlib.h>
 
 typedef struct stack_elem
 {   
