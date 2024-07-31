@@ -67,31 +67,34 @@ Collisions_list_elem *get_collisions_list_elem(Collisions_list_ptr clist, const 
     return NULL;
 }
 
-extern void delete_from_collisions_list(Collisions_list_elem **del_elem)
+extern void delete_from_collisions_list(Collisions_list_ptr *clist, Collisions_list_elem *del_elem)
 {
-    if ((*del_elem)->prev != NULL)
+    if (del_elem->prev != NULL)
     {
-        (*del_elem)->prev->next = (*del_elem)->next;
+        del_elem->prev->next = del_elem->next;
+    }
+    else
+    {
+        *clist = del_elem->next;
     }
 
-    if ((*del_elem)->next != NULL)
+    if (del_elem->next != NULL)
     {
-        (*del_elem)->next->prev = (*del_elem)->prev;
+        del_elem->next->prev = del_elem->prev;
     }
 
-    free(*del_elem);
-
-    *del_elem = NULL;
+    free(del_elem);
 }
 
 void destroy_collisions_list(Collisions_list_ptr *clist)
 {   
-    Collisions_list_elem *curr_elem;
-    while (clist != NULL)
+    Collisions_list_elem *curr_elem = *clist;
+    Collisions_list_elem *del_elem = *clist;
+    while (*clist != NULL)
     {   
-        curr_elem = *clist;
-        *clist = (*clist)->next;
-        free(curr_elem);
+        curr_elem = curr_elem->next;
+        delete_from_collisions_list(clist, del_elem);
+        del_elem = curr_elem;
     }
 }
 
@@ -132,7 +135,6 @@ extern Hash_memmap_ptr create_memmap()
 
 /**
  * \brief Get pointer to block from map
- * \param [out] is_value_invalid - check is TTL elapsed or not
  * \return NULL if something went wrong, pointer on memory block if all is OK.
  * To check whether the resulting value is correct, use cache_errno variable.
  * If value is incorrect it was alredy deleted from hash_map.
@@ -153,12 +155,26 @@ extern void *get_memmap_element(Hash_memmap_ptr map, const char *key)
     if (curr_time - elem->creation_time > elem->TTL)
     {
         // and delete it if yes
-        delete_from_collisions_list(&elem);
+        delete_from_collisions_list(&map[key_index].requests, elem);
         // also set cache_errno variable
         cache_errno = TTL_ELAPSED;
     }
 
     return block_ptr;
+}
+
+/**
+ * \brief Get collision list by key
+ * \return Returns the entire collisions list with elements by key.
+ * The key can be taken from any element of the chain since the hash keys
+ * for them are the same, otherwise they would be in different collisions lists.
+ * \note The function is used in the LRU algorithm to quickly remove
+ * the most recently used elements without a long search for them in the key.
+ */
+extern Collisions_list_ptr *get_memmap_clist(Hash_memmap_ptr map, const char *key)
+{   
+    int key_index = hash_function(key);
+    return &map[key_index].requests, key;
 }
 
 extern Collisions_list_elem *push_to_memmap

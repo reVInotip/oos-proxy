@@ -27,6 +27,13 @@ extern void init_cache()
     LRU_queue = create_pquque();
 }
 
+extern void drop_cache()
+{
+    destroy_OOS_allocator();
+    destroy_memmap(&memcache);
+    destroy_pqueue(LRU_queue);
+}
+
 /**
  * \brief Clearing cache when full using LRU alogrithm
  * \details The function will clear the cache until a new element can be inserted into it.
@@ -48,8 +55,15 @@ void clear_cache(const size_t clearing_size)
             break;
         }
 
+        Collisions_list_ptr *clist_for_curr_key = get_memmap_clist(memcache, elem->key_str);
+        if (*clist_for_curr_key == NULL)
+        {
+            elog(ERROR, "Cache overflow and can`t be cleaned");
+            abort(); // Come up with something smarter please ;) (For example you can use signal interrupt handler)
+        }
+
         OOS_free(elem->block_ptr);
-        delete_from_collisions_list(&elem);
+        delete_from_collisions_list(clist_for_curr_key, elem);
     }
 }
 

@@ -8,12 +8,14 @@
 #include <libconfig.h>
 #include <string.h>
 #include <assert.h>
+#include <unistd.h>
 #include "../include/utils/stack.h"
 #include "../include/shlib_operations/operations.h"
 #include "../include/logger/logger.h"
 #include "../include/guc/guc.h"
 #include "../include/memory/allocator.h"
 #include "../include/memory/cache.h"
+#include "../include/bg_worker/bg_worker.h"
 
 void test_alloc()
 {
@@ -79,7 +81,7 @@ int main(int argc, char *argv[]) {
     parse_config();
     init_logger();
     init_cache();
-    test_cache();
+    //test_cache();
     elog(LOG, "Logger inited successfully");
 
     Guc_data base_dir = get_config_parameter("base_dir");
@@ -96,7 +98,11 @@ int main(int argc, char *argv[]) {
         elog(WARN, "No extensions have been downloaded");
     }
 
-    destroy_OOS_allocator();
+    sleep(3);
+
+    drop_cache();
+    destroy_guc_table();
+    drop_all_workers();
     close_all_exetensions(lib_stack);
     stop_logger();
 

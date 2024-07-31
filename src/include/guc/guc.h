@@ -79,7 +79,7 @@ typedef struct guc_variable
 extern void destroy_guc_table();
 extern void parse_config();
 extern void define_custom_long_variable(
-    const char *name,
+    char *name,
     const char *descr,
     const long boot_value,
     const Guc_context context);

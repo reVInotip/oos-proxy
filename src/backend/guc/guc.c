@@ -171,6 +171,12 @@ extern void parse_config()
 
         push_to_map(map, conf_string.key, var);
     }
+
+    if (fclose(config) == EOF)
+    {
+        write_stderr("Can not close configuration file: %s", strerror(errno));
+        return;
+    }
 }
 
 /**
@@ -182,7 +188,7 @@ extern void parse_config()
  * \return nothing
  */
 extern void define_custom_long_variable(
-    const char *name,
+    char *name,
     const char *descr,
     const long boot_value,
     const Guc_context context)
@@ -193,6 +199,8 @@ extern void define_custom_long_variable(
     var->elem.num = boot_value;
     var->context = context;
     var->vartype = LONG;
+
+    push_to_map(map, name, var);
 }
 
 /**
