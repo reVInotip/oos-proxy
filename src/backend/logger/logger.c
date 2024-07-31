@@ -35,9 +35,9 @@ enum
 
 // This struct describe log file
 typedef struct log_file {
-    FILE *file; // Log file that is open now
+    FILE                                 *stream; // Log file that is open now
     char log_file_name[2][MAX_CONFIG_VALUE_SIZE]; // Names of both log files
-    int curr_log_file; // Index of current log file name
+    int                            curr_log_file; // Index of current log file name
 } Log_file;
 
 Log_file *log_file;
@@ -45,15 +45,19 @@ Log_file *log_file;
 // Close current log file and rewrite new log file
 inline void swap_log_files()
 {   
-    fclose(log_file->file);
+    fflush(log_file->stream);
+    if (fclose(log_file->stream) == EOF)
+    {
+        write_stderr("Can not close current log file: %s", strerror(errno));
+        return;
+    }
 
     log_file->curr_log_file = (log_file->curr_log_file + 1) % 2;
 
-    log_file->file = fopen(log_file->log_file_name[log_file->curr_log_file], "w");
-
-    if (log_file->file == NULL)
+    log_file->stream = fopen(log_file->log_file_name[log_file->curr_log_file], "w");
+    if (log_file->stream == NULL)
     {
-        perror(strerror(errno));
+        write_stderr("Can not open log file: %s", strerror(errno));
         return;
     }
 }
@@ -79,11 +83,11 @@ char *get_str_elevel(E_LEVEL level)
 }
 
 /**
- * \brief Check is log file full
- * \return -1 if file_number is wrong. 1 if file size excced capacity of log files
- * 0 if file is not full.
+ * \brief Check is log file complete
+ * \return -1 if file_number is wrong or error occurred. 1 if file size excced capacity of log files
+ * 0 if file is not complete.
  */
-int log_file_full(int file_number)
+int log_file_complete(int file_number)
 {   
     if (file_number != 0 && file_number != 1)
     {
@@ -91,7 +95,15 @@ int log_file_full(int file_number)
     }
 
     struct stat file_stat;
-    stat(log_file->log_file_name[file_number], &file_stat);
+    if (stat(log_file->log_file_name[file_number], &file_stat) == -1)
+    {
+        if (errno == ENOENT || errno == EFAULT) // file not exists
+        {
+            return 1;
+        }
+        write_stderr("Error while getting information about log file: %s", strerror(errno));
+        return -1;
+    }
 
     Guc_data log_cap = get_config_parameter("log_capacity");
     if (file_stat.st_size >= log_cap.num)
@@ -124,9 +136,9 @@ extern void write_log(E_LEVEL level, const char *filename, int line_number, cons
     char offset[OFFSET_BUFFER_SIZE] = {'\0'};
     strftime(offset, sizeof(time), "%Z", now);
 
-    int curr_log_file_full = log_file_full(log_file->curr_log_file);
+    int curr_log_file_complete = log_file_complete(log_file->curr_log_file);
 
-    if (curr_log_file_full > 0)
+    if (curr_log_file_complete > 0)
     {
         swap_log_files();
     }
@@ -144,11 +156,11 @@ extern void write_log(E_LEVEL level, const char *filename, int line_number, cons
         }
     }
 
-    fprintf(log_file->file, "%s %s %s | %s: \"", date, time, offset,
+    fprintf(log_file->stream, "%s %s %s | [%d] %s: \"", date, time, offset, getpid(),
         get_str_elevel(level));
-    vfprintf(log_file->file, format, args);
-    fprintf(log_file->file, "\" in file: %s, line: %d\n", filename, line_number);
-    fflush(log_file->file);
+    vfprintf(log_file->stream, format, args);
+    fprintf(log_file->stream, "\" in file: %s, line: %d\n", filename, line_number);
+    fflush(log_file->stream);
     
     va_end(args);
 }
@@ -209,39 +221,90 @@ extern void init_logger()
     strncpy(log_file->log_file_name[0], log1_file_name.str, sizeof(log1_file_name.str));
     strncpy(log_file->log_file_name[1], log2_file_name.str, sizeof(log2_file_name.str));
 
-    bool is_log_file_full[2] = {false, false};
+    bool is_log_file_complete[2] = {false, false};
+
+    closedir(source);
 
     if (is_log_dir_exists)
     {  
         source = opendir(log_dir_name.str);
 
-        is_log_file_full[0] = log_file_full(0) > 0;
-        is_log_file_full[1] = log_file_full(1) > 0;
-        
-        // we should check if second log file is not full
-        /*if (is_log_file_full[0] && !is_log_file_full[1])
+        int is_complete1 = log_file_complete(0);
+        int is_complete2 = log_file_complete(1);
+        if (is_complete1 < 0 || is_complete2 < 0)
         {
-            log_file->curr_log_file = 1;
-        }*/
+            free(log_file);
+            write_stderr("Error occurred while checking is log files complete or not: %s",
+                        strerror(errno));
+            return;
+        }
+
+        is_log_file_complete[0] = is_complete1 > 0;
+        is_log_file_complete[1] = is_complete2 > 0;
+
+        closedir(source);
+
+        // Choose one of two files for open
+        if (is_log_file_complete[(log_file->curr_log_file + 1) % 2])
+        {
+            // If the second file is complete, open the first one
+            if (is_log_file_complete[log_file->curr_log_file])
+            {
+                // If first file also complete open it in write mode
+                log_file->stream = fopen(log_file->log_file_name[log_file->curr_log_file], "w");
+                if (log_file->stream == NULL)
+                {
+                    free(log_file);
+                    write_stderr("Can not open log file: %s", strerror(errno));
+                    return;
+                }
+            }
+            else
+            {
+                // Else open it in append mode
+                log_file->stream = fopen(log_file->log_file_name[log_file->curr_log_file], "a");
+                if (log_file->stream == NULL)
+                {
+                    free(log_file);
+                    write_stderr("Can not open log file: %s", strerror(errno));
+                    return;
+                }
+            }
+        }
+        else
+        {
+            // If second file not complete and first file not set current log file to second log file
+            if (is_log_file_complete[log_file->curr_log_file])
+            {
+                log_file->curr_log_file = (log_file->curr_log_file + 1) % 2;
+            }
+
+            // And open it
+            log_file->stream = fopen(log_file->log_file_name[log_file->curr_log_file], "a");
+            if (log_file->stream == NULL)
+            {
+                free(log_file);
+                write_stderr("Can not open log file: %s", strerror(errno));
+                return;
+            }
+        }
     }
     else
     {   
         if (mkdir("log", S_IRWXU) < 0)
         {
-            perror(strerror(errno));
+            free(log_file);
+            write_stderr("Can not make log dirrectory: %s", strerror(errno));
             return;
         }
 
-        log_file->file = fopen(log1_file_name.str, "a");
-    }
-
-    if (is_log_file_full[log_file->curr_log_file])
-    {
-        log_file->file = fopen(log_file->log_file_name[log_file->curr_log_file], "w");
-    }
-    else
-    {
-        log_file->file = fopen(log_file->log_file_name[log_file->curr_log_file], "a");
+        log_file->stream = fopen(log_file->log_file_name[log_file->curr_log_file], "a");
+        if (log_file->stream == NULL)
+        {
+            free(log_file);
+            write_stderr("Can not open log file: %s", strerror(errno));
+            return;
+        }
     }
 }
 
@@ -250,6 +313,10 @@ extern void init_logger()
  */
 extern void stop_logger()
 {
-    fclose(log_file->file);
+    if (fclose(log_file->stream) == EOF)
+    {
+        write_stderr("Can not close current log file: %s", strerror(errno));
+        return;
+    }
     free(log_file);
 }

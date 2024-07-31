@@ -8,3 +8,4 @@
 extern void *cache_read(const char *key, char *buffer, const size_t len);
 extern int cache_write(const char *key, const char *message, const size_t len, unsigned TTL);
 extern void init_cache();
+extern void drop_cache();

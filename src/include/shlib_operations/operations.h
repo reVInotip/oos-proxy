@@ -3,10 +3,10 @@
  * This file contains basic operations on shared libraries such as
  * load to shared memory, removal from it and initialization.
  */
+#include "../utils/stack.h"
+#include "../../include/boss_operations/boss_operations.h"
 
 #pragma once
-
-#include "../utils/stack.h"
 
 /**
  * \brief Find and load all shared libraties
@@ -23,3 +23,4 @@
 extern void default_loader(Stack_ptr *stack, char *path_to_source, int curr_depth, const int depth);
 extern void close_all_exetensions(Stack_ptr lib_stack);
 extern void init_all_exetensions(Stack_ptr lib_stack);
+extern void exec_requests(void *extension_handle);

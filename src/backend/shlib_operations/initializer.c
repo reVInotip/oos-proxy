@@ -20,20 +20,24 @@ extern void init_all_exetensions(Stack_ptr lib_stack)
     assert(lib_stack != NULL);
 
     Stack_ptr curr_stack = lib_stack;
+
     Boss_op_func *op_func = malloc(sizeof(Boss_op_func));
     op_func->cache_write_op = cache_write_op;
     op_func->print_cache_op = print_cache_op;
+    op_func->register_background_worker = register_background_worker;
+
     for (size_t i = 0; i < get_stack_size(lib_stack); i++)
     {
         void (*function)() = dlsym(curr_stack->data, "init");
         if (function == NULL)
         {
             elog(WARN, dlerror());
-            goto next_stack_elem_lable;
+            curr_stack = curr_stack->next_elem;
+            continue;
         }
         function(op_func);
+        exec_requests(curr_stack->data);
 
-next_stack_elem_lable:
         curr_stack = curr_stack->next_elem;
     }
     free(op_func);

@@ -320,7 +320,7 @@ void *split_block_if_it_possible(Block_header *block_header, int i, const size_t
     // the block + the size of the header for the new block + the minimum size that must remain for the old
     // block (ALLOWABLE_OFFSET). The correctness of the inequality without taking into account the constant (ALLOWABLE_OFFSET)
     // is guaranteed..
-    if (block_header->block_size >= size + ALLOWABLE_OFFSET + sizeof(Block_header))
+    if (block_header->block_size < size + ALLOWABLE_OFFSET + sizeof(Block_header))
     {
         delete_value_from_heap(i);
         set_not_free(block_header->bool_constants);
@@ -361,6 +361,7 @@ void *split_block_if_it_possible(Block_header *block_header, int i, const size_t
  */
 extern void *OOS_allocate(const size_t size)
 {
+    print_alloc_mem();
     Heap_elem *heap = get_heap();
     if (!check_is_mem_availiable(size))
     {

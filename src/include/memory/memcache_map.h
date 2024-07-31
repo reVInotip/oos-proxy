@@ -48,6 +48,7 @@ extern Collisions_list_elem *push_to_memmap(Hash_memmap_ptr map,
                             time_t TTL,
                             time_t creation_time);
 extern void destroy_memmap(Hash_memmap_ptr *map);
+extern Collisions_list_ptr *get_memmap_clist(Hash_memmap_ptr map, const char *key);
 
 // ========== collisions list functions prototype ===========
-extern void delete_from_collisions_list(Collisions_list_elem **del_elem);
+extern void delete_from_collisions_list(Collisions_list_ptr *clist, Collisions_list_elem *del_elem);
