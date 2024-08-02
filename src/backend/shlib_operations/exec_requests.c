@@ -24,13 +24,21 @@ extern void exec_requests(void *extension_handle)
     {
         switch (op_name)
         {
-        case REGISTER_BG_WORKER:
-            create_bg_worker(extension_handle, (BGWorker_data *) operation_data);
-            clear_bg_worker_info((BGWorker_data *) operation_data);
-            break;
-        
-        default:
-            break;
+            case REGISTER_BG_WORKER:
+                BGWorker_data * bg_worker_data = (BGWorker_data *) operation_data;
+                if (bg_worker_data->need_observer)
+                {
+                    create_bg_worker_tracer(extension_handle, bg_worker_data);
+                }
+                else
+                {
+                    create_bg_worker(extension_handle, bg_worker_data);
+                }
+                clear_bg_worker_info(bg_worker_data);
+                break;
+            
+            default:
+                break;
         }
     }
 }

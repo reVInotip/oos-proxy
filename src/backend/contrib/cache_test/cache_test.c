@@ -23,8 +23,8 @@ extern void init(void *arg, ...)
         return;
     }
 
-    func->cache_write_op("bbbbb", buffer, 6, BUFFER_SIZE, 1);
-    func->print_cache_op("bbbbb", 6);
+    func->cache_write_op("bbbbb", buffer, BUFFER_SIZE, 10);
+    func->print_cache_op("bbbbb");
     
     fclose(proc);
 }

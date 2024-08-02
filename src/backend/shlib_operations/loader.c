@@ -107,6 +107,7 @@ extern void default_loader(Stack_ptr *stack, char *path_to_source, int curr_dept
             {
                 elog(WARN, dlerror());
             }
+            printf("%s\n", sample);
             push_to_stack(stack, library);
 
             free(full_name);

@@ -14,6 +14,10 @@
 #include <errno.h>
 #include <assert.h>
 #include <signal.h>
+#include <sys/ptrace.h>
+#include <sys/wait.h>
+#include <string.h>
+#include <sys/user.h>
 #include "../../include/boss_operations/boss_operations.h"
 #include "../../include/logger/logger.h"
 #include "../../include/utils/stack.h"
@@ -21,9 +25,16 @@
 
 #define STACK_SIZE_FOR_BGWORKER 4096
 
+typedef struct bgworker_tracee
+{
+    int (*function) ();
+    void        *stack;
+} BGWorker_tracee;
+
+
 typedef struct workers_list_elem
 {
-    BGWorker                 *data;
+    BGWorker *data;
     struct workers_list_elem *next;
     struct workers_list_elem *prev;
 } Workers_list_elem;
@@ -35,8 +46,8 @@ Workers_list_ptr bg_workers_list = NULL;
 // ======== auxiliary structure methods ===========
 
 static Workers_list_elem *insert_to_list(Workers_list_ptr *list, BGWorker *data)
-{   
-    Workers_list_elem *new = (Workers_list_elem *) malloc(sizeof(Workers_list_elem));
+{
+    Workers_list_elem *new = (Workers_list_elem *)malloc(sizeof(Workers_list_elem));
     assert(new != NULL);
 
     new->data = data;
@@ -97,6 +108,91 @@ static void delete_from_list(Workers_list_elem **del_elem)
 
 // ======== main methods ===========
 
+int tracer(void *tracee)
+{
+    BGWorker_tracee t;
+    t.function = ((BGWorker_tracee *) tracee)->function;
+    t.stack = ((BGWorker_tracee *) tracee)->stack;
+    int pid = clone(t.function, (char *)t.stack + STACK_SIZE_FOR_BGWORKER, CLONE_FILES | CLONE_IO, NULL);
+    if (pid < 0)
+    {
+        elog(WARN, "Can not create new process for background worker: %s", strerror(errno));
+        return -1;
+    }
+
+    int status = 0;
+    struct user_regs_struct state;
+    long err = ptrace(PTRACE_ATTACH, pid, NULL, NULL);
+
+    if (err < 0)
+    {
+        elog(WARN, "Can not attach tracer to background worker: %s", strerror(errno));
+        return -1;
+    }
+
+    if (waitpid(pid, &status, 0) < 0)
+    {
+        elog(WARN, "Can not attach tracer to background worker: %s", strerror(errno));
+        return -1;
+    }
+
+    err = ptrace(PTRACE_SETOPTIONS, pid, 0, PTRACE_O_TRACESYSGOOD | PTRACE_O_EXITKILL);
+    if (err < 0)
+    {
+        elog(WARN, "ptrace() error: %s\n", strerror(errno));
+        return -1;
+    }
+
+    while (!WIFEXITED(status))
+    {
+        err = ptrace(PTRACE_SYSCALL, pid, 0, 0);
+        if (err < 0)
+        {
+            elog(WARN, "ptrace() error: %s\n", strerror(errno));
+            return -1;
+        }
+
+        if (waitpid(pid, &status, 0) < 0)
+        {
+            elog(WARN, "wait() error: %s\n", strerror(errno));
+            return -1;
+        }
+
+        if (WIFSTOPPED(status) && (WSTOPSIG(status) & 0x80))
+        {
+            err = ptrace(PTRACE_GETREGS, pid, 0, &state);
+            if (err < 0)
+            {
+                elog(WARN, "ptrace() error: %s\n", strerror(errno));
+                return -1;
+            }
+
+            printf("SYSCALL %lld at %08llx\n", state.orig_rax, state.rip);
+
+            err = ptrace(PTRACE_SYSCALL, pid, 0, 0);
+            if (err < 0)
+            {
+                elog(WARN, "ptrace() error: %s\n", strerror(errno));
+                return -1;
+            }
+
+            if (waitpid(pid, &status, 0) < 0)
+            {
+                elog(WARN, "wait() error: %s\n", strerror(errno));
+                return -1;
+            }
+        }
+    }
+
+    while (1)
+    {
+        // wait after main procces kill as
+        sleep(10);
+    }
+
+    return 0;
+}
+
 /**
  * \brief Create new background worker
  * \param [in] extension_handle - pointer to the extension handler.
@@ -123,7 +219,7 @@ extern void create_bg_worker(void *extension_handle, const BGWorker_data *bg_wor
 
     // TO_DO add background worker struct to shared memory to record its state
     // CLONE_FILES | CLONE_IO flags needed for logger
-    int pid = clone(function, (char *) stack + STACK_SIZE_FOR_BGWORKER, CLONE_FILES | CLONE_IO, NULL);
+    int pid = clone(function, (char *)stack + STACK_SIZE_FOR_BGWORKER, CLONE_FILES | CLONE_IO, NULL);
     if (pid < 0)
     {
         elog(WARN, "Can not create new process for background worker: %s", strerror(errno));
@@ -131,11 +227,11 @@ extern void create_bg_worker(void *extension_handle, const BGWorker_data *bg_wor
         return;
     }
 
-    BGWorker *bg_worker = (BGWorker *) malloc(sizeof(BGWorker));
+    BGWorker *bg_worker = (BGWorker *)malloc(sizeof(BGWorker));
 
     bg_worker->pid = pid;
     bg_worker->stack = stack;
-    bg_worker->name = (char *) malloc(strlen(bg_worker_data->bg_worker_name) + 1);
+    bg_worker->name = (char *)malloc(strlen(bg_worker_data->bg_worker_name) + 1);
     assert(bg_worker->name);
     strcpy(bg_worker->name, bg_worker_data->bg_worker_name);
 
@@ -145,20 +241,98 @@ extern void create_bg_worker(void *extension_handle, const BGWorker_data *bg_wor
 }
 
 /**
+ * \brief Create new background worker and tracer for it
+ * \param [in] extension_handle - pointer to the extension handler.
+ * Needed to get a function from it that will be executed in a new process
+ * \param [in] bg_worker_data - data required to create a new process (more details in
+ * the description of the structure itself)
+ */
+extern void create_bg_worker_tracer(void *extension_handle, const BGWorker_data *bg_worker_data)
+{
+    BGWorker_tracee bg_worker_tracee_data;
+    bg_worker_tracee_data.function = dlsym(extension_handle, bg_worker_data->callback_name);
+    if (bg_worker_tracee_data.function == NULL)
+    {
+        elog(WARN, "Can not get handle for backrgound worker start function: %s", dlerror());
+        return;
+    }
+
+    void *tracee_stack = mmap(NULL, STACK_SIZE_FOR_BGWORKER, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_STACK | MAP_ANONYMOUS, -1, 0);
+    if (tracee_stack == MAP_FAILED)
+    {
+        elog(WARN, "Can not allocate memory for background worker stack: %s", strerror(errno));
+        return;
+    }
+
+    void *observer_stack = mmap(NULL, STACK_SIZE_FOR_BGWORKER, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_STACK | MAP_ANONYMOUS, -1, 0);
+    if (observer_stack == MAP_FAILED)
+    {
+        munmap(tracee_stack, STACK_SIZE_FOR_BGWORKER);
+        elog(WARN, "Can not allocate memory for background worker tracer stack: %s", strerror(errno));
+        return;
+    }
+
+    bg_worker_tracee_data.stack = tracee_stack;
+    int tracer_pid = clone(tracer, (char *)observer_stack + STACK_SIZE_FOR_BGWORKER,
+                            CLONE_FILES | CLONE_IO | CLONE_VM, &bg_worker_tracee_data);
+    if (tracer_pid < 0)
+    {
+        elog(WARN, "Can not create tracer process for background worker: %s", strerror(errno));
+        munmap(observer_stack, STACK_SIZE_FOR_BGWORKER);
+        return;
+    }
+
+    BGWorker *bg_worker_tracer = (BGWorker *)malloc(sizeof(BGWorker));
+
+    bg_worker_tracer->pid = tracer_pid;
+    bg_worker_tracer->stack = observer_stack;
+    if (asprintf(&bg_worker_tracer->name, "%s tracer", bg_worker_data->bg_worker_name) < 0)
+    {
+        elog(WARN, "Can not create tracer process for background worker: %s", strerror(errno));
+        munmap(observer_stack, STACK_SIZE_FOR_BGWORKER);
+        return;
+    }
+
+    insert_to_list(&bg_workers_list, bg_worker_tracer);
+
+    elog(LOG, "Create new background worker tracer: %s with pid: %d", bg_worker_tracer->name, tracer_pid);
+
+    BGWorker *bg_worker_tracee = (BGWorker *)malloc(sizeof(BGWorker));
+
+    bg_worker_tracee->pid = -1;
+    bg_worker_tracer->stack = tracee_stack;
+    bg_worker_tracee->name = (char *)malloc(strlen(bg_worker_data->bg_worker_name) + 1);
+    assert(bg_worker_tracee->name);
+    strcpy(bg_worker_tracee->name, bg_worker_data->bg_worker_name);
+
+    insert_to_list(&bg_workers_list, bg_worker_tracee);
+
+    elog(LOG, "Create new background worker: %s", bg_worker_tracee->name);
+}
+
+/**
  * \brief Destroy all background workers
  * \details "Destroy" means kill process, unmap stack and delete it from list of backgeound workers.
  */
 extern void drop_all_workers()
-{   
+{
     Workers_list_elem *curr_elem;
     while (bg_workers_list != NULL)
-    {   
-        kill(bg_workers_list->data->pid, SIGKILL);
+    {
+        if (bg_workers_list->data->pid != -1)
+        {
+            if (kill(bg_workers_list->data->pid, SIGKILL))
+            {
+                elog(ERROR, "Can not kill background worker: %s with pid: %d - %s",
+                    bg_workers_list->data->name, bg_workers_list->data->pid, strerror(errno));
+            }
+        }
+
         curr_elem = bg_workers_list;
         if (munmap(bg_workers_list->data->stack, STACK_SIZE_FOR_BGWORKER) < 0)
         {
-            elog(ERROR, "Destroy stack for background worker: %s with pid: %d failed",
-                bg_workers_list->data->name, bg_workers_list->data->pid);
+            elog(ERROR, "Destroy stack for background worker: %s with pid: %d failed - %s",
+                 bg_workers_list->data->name, bg_workers_list->data->pid, strerror(errno));
         }
 
         free(bg_workers_list->data->name);

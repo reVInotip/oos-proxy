@@ -275,7 +275,7 @@ extern bool check_is_mem_availiable(const size_t block_size)
  */
 extern int init_OOS_allocator()
 {
-    Guc_data max_allocation_size = get_config_parameter("memory_for_cache");
+    Guc_data max_allocation_size = get_config_parameter("memory_for_cache", C_MAIN);
     size_t max_count_of_free_blocks = (((size_t) max_allocation_size.num) / (sizeof(Block_header) + 1)) / 2 + 1;
 
     main_ptr = mmap(NULL, max_allocation_size.num + max_count_of_free_blocks * sizeof(Heap_elem) + sizeof(Heap_meta_data),
@@ -426,7 +426,7 @@ extern void OOS_free(const void *addr)
  */
 extern void destroy_OOS_allocator()
 {
-    Guc_data max_allocation_size = get_config_parameter("memory_for_cache");
+    Guc_data max_allocation_size = get_config_parameter("memory_for_cache", C_MAIN);
     Heap_meta_data *meta_data = get_heap_meta_data();
 
     munmap(main_ptr, max_allocation_size.num + meta_data->size * sizeof(Heap_elem) + sizeof(Heap_meta_data));

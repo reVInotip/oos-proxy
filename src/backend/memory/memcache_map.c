@@ -174,7 +174,7 @@ extern void *get_memmap_element(Hash_memmap_ptr map, const char *key)
 extern Collisions_list_ptr *get_memmap_clist(Hash_memmap_ptr map, const char *key)
 {   
     int key_index = hash_function(key);
-    return &map[key_index].requests, key;
+    return &map[key_index].requests;
 }
 
 extern Collisions_list_elem *push_to_memmap

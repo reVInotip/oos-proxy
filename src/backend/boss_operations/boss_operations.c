@@ -2,6 +2,7 @@
 #include "../../include/boss_operations/boss_operations.h"
 #include "../../include/memory/cache.h"
 #include "../../include/logger/logger.h"
+#include "../../include/guc/guc.h"
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
@@ -49,13 +50,14 @@ extern int cache_write_op
 (
     const char *key, 
     const char *message,
-    const size_t key_length,
     const size_t message_length,
     const unsigned TTL
 )
 {
-    if (key_length > MAX_KEY_SIZE)
+    if (strlen(key) + 1 > MAX_KEY_SIZE)
     {
+        printf("Here\n");
+        elog(ERROR, "Size of arguments too large");
         return -1;
     }
 
@@ -65,18 +67,19 @@ extern int cache_write_op
     return cache_write(key, message, message_length, TTL);
 }
 
-extern void print_cache_op(const char *key, const size_t key_length)
+extern void print_cache_op(const char *key)
 {
-    if (key_length > MAX_KEY_SIZE)
+    if (strlen(key) + 1 > MAX_KEY_SIZE)
     {
+        elog(ERROR, "Size of arguments too large");
         return;
     }
-
+    
     char *message = (char *) cache_read(key, NULL, 0);
     printf("%s\n", message);
 }
 
-extern void register_background_worker(char *callback_name, char *bg_worker_name)
+extern void register_background_worker(char *callback_name, char *bg_worker_name, bool need_observer)
 {
     if (callback_name == NULL || bg_worker_name == NULL)
     {
@@ -93,7 +96,48 @@ extern void register_background_worker(char *callback_name, char *bg_worker_name
     bg_worker_data->bg_worker_name = (char *) malloc(strlen(bg_worker_name) + 1);
     strcpy(bg_worker_data->bg_worker_name, bg_worker_name);
 
+    bg_worker_data->need_observer = need_observer;
+
     push_to_stack(&boss_op, REGISTER_BG_WORKER, bg_worker_data);
+}
+
+extern void define_custom_long_variable_op(char *name, const char *descr, const long boot_value, const int8_t context)
+{
+    if (strlen(name) + 1 > MAX_NAME_LENGTH || strlen(descr) + 1 > MAX_DESCRIPTION_LENGTH)
+    {
+        elog(ERROR, "Size of arguments too large");
+        return;
+    }
+
+    if (is_main(context))
+    {
+        elog(ERROR, "Try to create main context variable from user context function");
+        return;
+    }
+
+    define_custom_long_variable(name, descr, boot_value, context | C_USER);
+}
+
+extern void define_custom_string_variable_op(char *name, const char *descr, const char *boot_value, const int8_t context)
+{
+    if 
+    (
+        strlen(name) + 1 > MAX_NAME_LENGTH ||
+        strlen(descr) + 1 > MAX_DESCRIPTION_LENGTH ||
+        strlen(boot_value) + 1 > MAX_CONFIG_VALUE_SIZE
+    )
+    {
+        elog(ERROR, "Size of arguments too large");
+        return;
+    }
+
+    if (is_main(context))
+    {
+        elog(ERROR, "Try to create main context variable from user context function");
+        return;
+    }
+
+    define_custom_string_variable(name, descr, boot_value, context | C_USER);
 }
 
 //============operations for boss=============

@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include <time.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -10,6 +12,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <assert.h>
 #include "../../include/logger/logger.h"
 #include "../../include/guc/guc.h"
 
@@ -105,7 +108,7 @@ int log_file_complete(int file_number)
         return -1;
     }
 
-    Guc_data log_cap = get_config_parameter("log_capacity");
+    Guc_data log_cap = get_config_parameter("log_capacity", C_MAIN);
     if (file_stat.st_size >= log_cap.num)
     {
         return 1;
@@ -148,7 +151,7 @@ extern void write_log(E_LEVEL level, const char *filename, int line_number, cons
 
     if (level == INFO)
     {
-        Guc_data info_in_log = get_config_parameter("info_in_log");
+        Guc_data info_in_log = get_config_parameter("info_in_log", C_MAIN);
         if (!info_in_log.num)
         {
             write_stderr(format, args);
@@ -156,11 +159,15 @@ extern void write_log(E_LEVEL level, const char *filename, int line_number, cons
         }
     }
 
-    fprintf(log_file->stream, "%s %s %s | [%d] %s: \"", date, time, offset, getpid(),
-        get_str_elevel(level));
-    vfprintf(log_file->stream, format, args);
-    fprintf(log_file->stream, "\" in file: %s, line: %d\n", filename, line_number);
+    char *format_str;
+    vasprintf(&format_str, format, args);
+    assert(format_str != NULL);
+
+    fprintf(log_file->stream, "%s %s %s | [%d] %s: \"%s\" in file: %s, line: %d\n", date, time,
+        offset, getpid(), get_str_elevel(level), format_str, filename, line_number);
     fflush(log_file->stream);
+
+    free(format_str);
     
     va_end(args);
 }
@@ -198,9 +205,9 @@ extern void init_logger()
     log_file = (Log_file *) malloc(sizeof(Log_file));
 
     bool is_log_dir_exists = false;
-    Guc_data log_dir_name = get_config_parameter("log_dir_name");
-    Guc_data log1_file_name = get_config_parameter("log1_file_name");
-    Guc_data log2_file_name = get_config_parameter("log2_file_name");
+    Guc_data log_dir_name = get_config_parameter("log_dir_name", C_MAIN);
+    Guc_data log1_file_name = get_config_parameter("log1_file_name", C_MAIN);
+    Guc_data log2_file_name = get_config_parameter("log2_file_name", C_MAIN);
     
     DIR *source = opendir(".");
     struct dirent* entry;

@@ -19,4 +19,5 @@ typedef struct bgworker
 } BGWorker;
 
 extern void create_bg_worker(void *extension_handle, const BGWorker_data *bg_worker_data);
+extern void create_bg_worker_tracer(void *extension_handle, const BGWorker_data *bg_worker_data);
 extern void drop_all_workers();

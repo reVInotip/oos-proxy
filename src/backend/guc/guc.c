@@ -165,7 +165,7 @@ extern void parse_config()
         }
 
         // all config varibles is immutable
-        var->context = C_STATIC;
+        var->context = C_MAIN | C_STATIC;
         strcpy(var->name, conf_string.key);
         strcpy(var->descripton, STANDART_DESCRIPTION);
 
@@ -191,7 +191,7 @@ extern void define_custom_long_variable(
     char *name,
     const char *descr,
     const long boot_value,
-    const Guc_context context)
+    const int8_t context)
 {
     Guc_variable *var = (Guc_variable *) malloc(sizeof(Guc_variable));
     strcpy(var->name, name);
@@ -215,7 +215,7 @@ extern void define_custom_string_variable(
     char *name,
     const char *descr,
     const char *boot_value,
-    const Guc_context context)
+    const int8_t context)
 {
     Guc_variable *var = (Guc_variable *) malloc(sizeof(Guc_variable));
     strcpy(var->name, name);
@@ -230,27 +230,47 @@ extern void define_custom_string_variable(
 /**
  * \brief Get GUC variable by its name
  */
-extern Guc_data get_config_parameter(const char *name)
+extern Guc_data get_config_parameter(const char *name, const int8_t context)
 {
-    Guc_variable *var = get_map_element(map, name);
+    Guc_variable *var = (Guc_variable *) get_map_element(map, name);
+    Guc_data err_data = {0};
     
     if (var == NULL)
     {
         write_stderr("Config variable %s does not exists", name);
-        elog(ERROR, "Config variable %s does not exists", name);
+        return err_data;
     }
+
+    if (!equals(get_identify(var->context), get_identify(context)))
+    {
+        elog(ERROR, "Try to get variable with different context");
+        return err_data;
+    }
+
     return var->elem;
 }
 
 /**
  * \brief Set new value to GUC variable (only if context allows)
  */
-extern void set_config_parameter(const char *name, const Guc_data data)
+extern void set_config_parameter(const char *name, const Guc_data data, const int8_t context)
 {
-    Guc_variable *var = get_map_element(map, name);
-    if (var->context == C_STATIC)
+    Guc_variable *var = (Guc_variable *) get_map_element(map, name);
+
+    if (var == NULL)
+    {
+        elog(ERROR, "Config variable %s does not exists", name);
+    }
+
+    if (!is_dynamic(var->context))
     {
         elog(ERROR, "Try to change static config variable");
+        return;
+    }
+
+    if (!equals(get_identify(var->context), get_identify(context)))
+    {
+        elog(ERROR, "Try to change variable with different context");
         return;
     }
 

@@ -9,6 +9,7 @@
  * create your own safe global varible using a special method.
  * I implemented it using a hash map.
  */
+#include <stdint.h>
 
 #pragma once
 
@@ -45,14 +46,21 @@ typedef union guc_data
  * \brief The context in which the global variable is declared.
  *          Needed to restrict access to it.
  * \details
- *        C_STATIC - variable can not be changed after it was initialize
- *        C_DYNAMIC - variable be changed after it was initialize
+ *        C_*_STATIC - variable can not be changed after it was initialize
+ *        C_*_DYNAMIC - variable be changed after it was initialize
+ *        MAIN - variable availiable only in main process (the boss)
+ *        USER - varibale availiable only in bacground worker process
  */
-typedef enum
-{
-    C_STATIC,
-    C_DYNAMIC
-} Guc_context;
+
+#define C_STATIC 0b00000000
+#define C_DYNAMIC 0b00000001
+#define C_MAIN 0b00000010
+#define C_USER 0b00000000
+
+#define is_dynamic(contest) (((context) & 0b00000001) >= 1)
+#define is_main(contest) (((context) & 0b00000010) >= 1)
+#define get_identify(context) ((context) & 0b00000010)
+#define equals(context1, context2) ((~(context1) & ~(context2)) | ((context1) & (context2)))
 
 /**
  * \brief Type of configuration variable. Now configuration file
@@ -70,7 +78,7 @@ typedef enum
 typedef struct guc_variable
 {   
     Guc_data elem;
-    Guc_context context;
+    int8_t context;
     Config_vartype vartype;
     char descripton[MAX_DESCRIPTION_LENGTH];
     char name[MAX_NAME_LENGTH];
@@ -82,11 +90,11 @@ extern void define_custom_long_variable(
     char *name,
     const char *descr,
     const long boot_value,
-    const Guc_context context);
+    const int8_t context);
 extern void define_custom_string_variable(
     char *name,
     const char *descr,
     const char *boot_value,
-    const Guc_context context);
-extern Guc_data get_config_parameter(const char *name);
-extern void set_config_parameter(const char *name, const Guc_data data);
+    const int8_t context);
+extern Guc_data get_config_parameter(const char *name, const int8_t context);
+extern void set_config_parameter(const char *name, const Guc_data data, const int8_t context);

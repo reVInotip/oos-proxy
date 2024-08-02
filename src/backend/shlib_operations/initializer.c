@@ -25,6 +25,8 @@ extern void init_all_exetensions(Stack_ptr lib_stack)
     op_func->cache_write_op = cache_write_op;
     op_func->print_cache_op = print_cache_op;
     op_func->register_background_worker = register_background_worker;
+    op_func->define_custom_long_variable_op = define_custom_long_variable_op;
+    op_func->define_custom_string_variable_op = define_custom_string_variable_op;
 
     for (size_t i = 0; i < get_stack_size(lib_stack); i++)
     {

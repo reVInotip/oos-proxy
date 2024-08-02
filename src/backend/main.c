@@ -84,7 +84,7 @@ int main(int argc, char *argv[]) {
     //test_cache();
     elog(LOG, "Logger inited successfully");
 
-    Guc_data base_dir = get_config_parameter("base_dir");
+    Guc_data base_dir = get_config_parameter("base_dir", C_MAIN);
 
     Stack_ptr lib_stack = create_stack();
     loader(&lib_stack, base_dir.str);
@@ -100,9 +100,9 @@ int main(int argc, char *argv[]) {
 
     sleep(3);
 
+    drop_all_workers();
     drop_cache();
     destroy_guc_table();
-    drop_all_workers();
     close_all_exetensions(lib_stack);
     stop_logger();
 
