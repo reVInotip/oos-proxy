@@ -33,7 +33,7 @@ extern void init_all_exetensions(Stack_ptr lib_stack)
         void (*function)() = dlsym(curr_stack->data, "init");
         if (function == NULL)
         {
-            elog(WARN, dlerror());
+            elog(WARN, "%s\n", dlerror());
             curr_stack = curr_stack->next_elem;
             continue;
         }

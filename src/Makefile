@@ -15,4 +15,4 @@ debug: main.o utils.a shlib_operations.a logger.so guc.o memory.a boss_operation
 include backend/Makefile
 
 clean:
-	rm -rf *.o *.a
+	rm -rf *.o *.a *.so

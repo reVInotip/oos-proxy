@@ -74,7 +74,7 @@ static Workers_list_elem *insert_to_list(Workers_list_ptr *list, BGWorker *data)
     return new;
 }
 
-static Workers_list_elem *get_from_list(Workers_list_ptr list, int pid)
+/*static Workers_list_elem *get_from_list(Workers_list_ptr list, int pid)
 {
     while (list != NULL)
     {
@@ -87,7 +87,7 @@ static Workers_list_elem *get_from_list(Workers_list_ptr list, int pid)
     }
 
     return NULL;
-}
+}*/
 
 static void delete_from_list(Workers_list_elem **del_elem)
 {

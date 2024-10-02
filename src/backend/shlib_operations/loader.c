@@ -105,7 +105,7 @@ extern void default_loader(Stack_ptr *stack, char *path_to_source, int curr_dept
             void *library = dlopen(full_name, RTLD_LAZY);
             if (library == NULL)
             {
-                elog(WARN, dlerror());
+                elog(WARN, "%s\n", dlerror());
             }
             printf("%s\n", sample);
             push_to_stack(stack, library);
