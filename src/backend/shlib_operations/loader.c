@@ -1,10 +1,10 @@
 #include <dlfcn.h>
 #include <dirent.h>
 #include <stdlib.h>
-#include <libconfig.h>
 #include <string.h>
 #include <assert.h>
 #include <stdio.h>
+#include <errno.h>
 #include "../../include/utils/stack.h"
 #include "../../include/shlib_operations/operations.h"
 #include "../../include/logger/logger.h"
@@ -78,7 +78,7 @@ void get_sample(char *path_to_source, char *sample)
 extern void default_loader(Stack_ptr *stack, char *path_to_source, int curr_depth, const int depth)
 {
     assert(path_to_source != NULL);
-
+    
     if (curr_depth > depth)
     {
         return;
@@ -89,6 +89,13 @@ extern void default_loader(Stack_ptr *stack, char *path_to_source, int curr_dept
     get_sample(path_to_source, sample);
 
     DIR *source = opendir(path_to_source);
+    if (source == NULL)
+    {
+        elog(ERROR, "Error during opening the extensions directory (%s): %s",
+            path_to_source, strerror(errno));
+        
+        return;
+    }
     struct dirent* entry;
 
     // Scan current directory
