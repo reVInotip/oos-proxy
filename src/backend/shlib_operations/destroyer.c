@@ -1,7 +1,6 @@
 #include <dlfcn.h>
 #include <dirent.h>
 #include <stdlib.h>
-#include <libconfig.h>
 #include <string.h>
 #include <assert.h>
 #include "../../include/utils/stack.h"

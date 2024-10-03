@@ -5,7 +5,7 @@
 #include <dlfcn.h>
 #include <dirent.h>
 #include <stdlib.h>
-#include <libconfig.h>
+#include <stdio.h>
 #include <string.h>
 #include <assert.h>
 #include <unistd.h>
