@@ -21,11 +21,11 @@
 typedef struct collisions_list_elem
 {
     // String representation of a key
-    char               key_str[MAX_KEY_SIZE];
-    void                          *block_ptr; // pointer to cache block with data
-    time_t                               TTL; // --\ 
-                                              //    |--- two value forming priority for queue
-    time_t                      creation_time; // --/
+    char                key_str[MAX_KEY_SIZE];
+    void                           *block_ptr; // pointer to cache block with data
+    // TTL (Time To Live) and creation time are two values forming priority for queue
+    time_t                                TTL;
+    time_t                      creation_time;
     struct collisions_list_elem         *next;
     struct collisions_list_elem         *prev;
 } Collisions_list_elem;

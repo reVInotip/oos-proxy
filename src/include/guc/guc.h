@@ -19,8 +19,8 @@
 // The maximum number of bytes that can contain a config key
 #define MAX_CONFIG_KEY_SIZE 100
 
-// Default configuration file name
-#define CONF_FILE_NAME "oos_proxy.conf"
+// Default configuration file name !! MAKE IT COMMAND LINE ARGUMENT !!
+#define CONF_FILE_NAME "/home/grisha/Projects/oos_new_labs/proxy-grisha/src/oos_proxy.conf" 
 
 // The standart description of config varibale
 #define STANDART_DESCRIPTION "this is a config variable"

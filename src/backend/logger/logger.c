@@ -160,8 +160,12 @@ extern void write_log(E_LEVEL level, const char *filename, int line_number, cons
     }
 
     char *format_str;
-    vasprintf(&format_str, format, args);
-    assert(format_str != NULL);
+    if (vasprintf(&format_str, format, args) < 0)
+    {  
+        write_stderr(format, args);
+        write_stderr("Something went wrong then writing log file!");
+        return;
+    }
 
     fprintf(log_file->stream, "%s %s %s | [%d] %s: \"%s\" in file: %s, line: %d\n", date, time,
         offset, getpid(), get_str_elevel(level), format_str, filename, line_number);

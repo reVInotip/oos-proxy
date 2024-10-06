@@ -1,7 +1,6 @@
 #include <dlfcn.h>
 #include <dirent.h>
 #include <stdlib.h>
-#include <libconfig.h>
 #include <string.h>
 #include <assert.h>
 #include "../../include/utils/stack.h"
@@ -15,7 +14,10 @@
 */
 extern void close_all_exetensions(Stack_ptr lib_stack)
 {   
-    assert(lib_stack != NULL);
+    if (lib_stack == NULL)
+    {
+        return;
+    }
 
     Stack_ptr curr_stack = lib_stack;
     for (size_t i = 0; i < get_stack_size(lib_stack); i++)
