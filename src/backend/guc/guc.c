@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <assert.h>
+#include <unistd.h>
 #include "../../include/logger/logger.h"
 #include "../../include/utils/hash_map.h"
 #include "../../include/guc/guc.h"
@@ -120,14 +121,47 @@ extern void destroy_guc_table()
 }
 
 /**
- * \brief Parse configuration file and create GUC variables from config variables
+ * \brief Get path to configuration file from command line arguments
+ * \param [in] argc - count arguments in command line (include executable file name)
+ * \param [in] argv - array of command line arguments (include executable file name)
+ * \return If path to config was found pointer to it in argv will be return, else
+ * function return NULL
  */
-extern void parse_config()
+char *get_config_path(int argc, char *argv[])
 {
-    FILE *config = fopen(CONF_FILE_NAME, "r");
+    if (argc < 3)
+        return NULL;
+    else if (!strcmp(argv[1], "-c"))
+        return argv[2];
+    
+    return NULL;
+}
+
+/**
+ * \brief Parse configuration file and create GUC variables from config variables
+ * \param [in] path_to_config - path to configuration file. If it NULL default path will be used
+ */
+extern void parse_config(char *path_to_config)
+{
+    FILE *config;
+    if (path_to_config == NULL)
+    {
+        write_stderr("Use default configuration file\n");
+        config = fopen(DEFAULT_CONF_FILE_PATH, "r");
+    }
+    else
+    {
+        config = fopen(path_to_config, "r");
+        if (config == NULL)
+        {
+            write_stderr("Can`t read user config file: %s. Try to read default config file\n", strerror(errno));
+            config = fopen(DEFAULT_CONF_FILE_PATH, "r");
+        }
+    }
+    
     if (config == NULL)
     {  
-        write_stderr("Can`t read config file. Use default GUC values\n");
+        write_stderr("Can`t read config file: %s. Use default GUC values\n", strerror(errno));
         return;
     }
 

@@ -77,8 +77,10 @@ void test_cache()
     printf("%s", buffer);
 }
 
-int main(int argc, char *argv[]) {
-    parse_config();
+int main(int argc, char *argv[])
+{
+    char *conf_path = get_config_path(argc, argv);
+    parse_config(conf_path);
     init_logger();
     init_cache();
     //test_cache();
