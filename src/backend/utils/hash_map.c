@@ -74,7 +74,11 @@ static void reallocate_pqueue(Pqueue_ptr pqueue)
     pqueue->size *= 2;
 }
 
-static void insert_value_to_pqueue(Pqueue_ptr pqueue, void *value, char *key, int priority)
+static void insert_value_to_pqueue
+(
+    Pqueue_ptr pqueue, const void *value,
+    const size_t value_size, const char *key, const int priority
+)
 {
     ++pqueue->curr_size;
     if (pqueue->curr_size > pqueue->size)
@@ -84,7 +88,11 @@ static void insert_value_to_pqueue(Pqueue_ptr pqueue, void *value, char *key, in
 
     strcpy(pqueue->data[pqueue->curr_size - 1].key_str, key);
     pqueue->data[pqueue->curr_size - 1].priority = priority;
-    pqueue->data[pqueue->curr_size - 1].value = value;
+    pqueue->data[pqueue->curr_size - 1].value = malloc(value_size);
+
+    assert(pqueue->data[pqueue->curr_size - 1].value != NULL);
+
+    memcpy(pqueue->data[pqueue->curr_size - 1].value, value, value_size);
 
     shift_up(pqueue, pqueue->curr_size - 1);
 }
@@ -109,6 +117,11 @@ static void *pqueue_min(Pqueue_ptr pqueue)
 
 static void destroy_pqueue(Pqueue_ptr pqueue)
 {   
+    for (size_t i = 0; i < pqueue->curr_size; i++)
+    {   
+        free((pqueue->data[i]).value);
+    }
+
     free(pqueue->data);
     free(pqueue);
 }
@@ -149,10 +162,14 @@ extern void *get_map_element(Hash_map_ptr map, const char *key)
     return value;
 }
 
-extern void push_to_map_with_priority(Hash_map_ptr map, char *key, void *value, int priority)
+extern void push_to_map_with_priority
+(
+    Hash_map_ptr map, const char *key, const void *value,
+    const size_t value_size, const int priority
+)
 {
     int key_index = hash_function(key);
-    insert_value_to_pqueue(map[key_index].values, value, key, priority);
+    insert_value_to_pqueue(map[key_index].values, value, value_size, key, priority);
 }
 
 extern void destroy_map(Hash_map_ptr *map)

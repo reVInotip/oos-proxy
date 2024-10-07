@@ -45,14 +45,15 @@ typedef struct hash_map_elem
 typedef Hash_map_elem *Hash_map_ptr;
 
 // Use if you don`t need priority
-#define push_to_map(map, key, value) \
+#define push_to_map(map, key, value, value_size) \
     do \
     { \
-        push_to_map_with_priority(map, key, value, 0); \
+        push_to_map_with_priority(map, key, value, value_size, 0); \
     } while (0)
 
 extern Hash_map_ptr create_map();
 extern void *get_map_element(Hash_map_ptr map, const char *key);
-extern void push_to_map_with_priority(Hash_map_ptr map, char *key, void *value, int priority);
+extern void push_to_map_with_priority(Hash_map_ptr map, const char *key, const void *value,
+                                        const size_t value_size, const int priority);
 extern void destroy_map(Hash_map_ptr *map);
 extern size_t get_map_size(Hash_map_ptr map);

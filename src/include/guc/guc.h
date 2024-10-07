@@ -20,7 +20,7 @@
 #define MAX_CONFIG_KEY_SIZE 100
 
 // Default configuration file name !! MAKE IT COMMAND LINE ARGUMENT !!
-#define CONF_FILE_NAME "/home/grisha/Projects/oos_new_labs/proxy-grisha/src/oos_proxy.conf" 
+#define DEFAULT_CONF_FILE_PATH "./oos_proxy.conf" 
 
 // The standart description of config varibale
 #define STANDART_DESCRIPTION "this is a config variable"
@@ -85,7 +85,8 @@ typedef struct guc_variable
 } Guc_variable;
 
 extern void destroy_guc_table();
-extern void parse_config();
+extern char *get_config_path(int argc, char *argv[]);
+extern void parse_config(char *path_to_config);
 extern void define_custom_long_variable(
     char *name,
     const char *descr,
