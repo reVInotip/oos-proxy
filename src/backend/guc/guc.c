@@ -137,6 +137,16 @@ char *get_config_path(int argc, char *argv[])
     return NULL;
 }
 
+void init_guc_by_default()
+{
+    define_custom_long_variable("log_capacity", "Capacity of .log file (in bytes)", 1024, C_MAIN | C_STATIC);
+    define_custom_string_variable("log1_file_name", "First file with logs", "log/oos_proxy_1.log", C_MAIN | C_STATIC);
+    define_custom_string_variable("log2_file_name", "Second file with logs", "log/oos_proxy_2.log", C_MAIN | C_STATIC);
+    define_custom_string_variable("log_dir_name", "Name of dirrectory with .log files", "log", C_MAIN | C_STATIC);
+    define_custom_long_variable("info_in_log", "Should write INFO messages to logs or not", 1, C_MAIN | C_STATIC);
+    define_custom_long_variable("memory_for_cache", "Memory allocated for cache (in bytes)", 5242880, C_MAIN | C_STATIC);
+}
+
 /**
  * \brief Parse configuration file and create GUC variables from config variables
  * \param [in] path_to_config - path to configuration file. If it NULL default path will be used
@@ -158,52 +168,45 @@ extern void parse_config(char *path_to_config)
             config = fopen(DEFAULT_CONF_FILE_PATH, "r");
         }
     }
+
+    map = create_map();
     
     if (config == NULL)
     {  
         write_stderr("Can`t read config file: %s. Use default GUC values\n", strerror(errno));
+        init_guc_by_default();
         return;
     }
 
-    map = create_map();
     char conf_raw_string[MAX_CONFIG_KEY_SIZE + MAX_CONFIG_VALUE_SIZE + 2] = {'\0'};
-    Guc_variable *var;
+    Guc_variable var;
     Conf_string conf_string;
     bool value_is_digit = true;
     bool string_is_incorrect = true;
 
     // We read the line up to the line break character and read it separately so as not to interfere
     while (fscanf(config, "%[^'\n'] %*['\n']", conf_raw_string) != EOF)
-    {   
-        var = (Guc_variable *) malloc(sizeof(Guc_variable));
-
+    {
         memset(conf_string.key, 0, MAX_CONFIG_KEY_SIZE);
-        conf_string.value = &(var->elem);
+        conf_string.value = &(var.elem);
 
         // get key and value from config string
         analize_config_string(conf_raw_string, &conf_string, &value_is_digit, &string_is_incorrect);
 
         if (string_is_incorrect)
-        {
-            free(var);
             continue;
-        }
 
         if (value_is_digit)
-        {
-            var->vartype = LONG;
-        }
+            var.vartype = LONG;
         else
-        {
-            var->vartype = STRING;
-        }
+            var.vartype = STRING;
 
         // all config varibles is immutable
-        var->context = C_MAIN | C_STATIC;
-        strcpy(var->name, conf_string.key);
-        strcpy(var->descripton, STANDART_DESCRIPTION);
+        var.context = C_MAIN | C_STATIC;
+        strcpy(var.name, conf_string.key);
+        strcpy(var.descripton, STANDART_DESCRIPTION);
 
-        push_to_map(map, conf_string.key, var);
+        push_to_map(map, conf_string.key, &var, sizeof(Guc_variable));
     }
 
     if (fclose(config) == EOF)
@@ -234,7 +237,7 @@ extern void define_custom_long_variable(
     var->context = context;
     var->vartype = LONG;
 
-    push_to_map(map, name, var);
+    push_to_map(map, name, var, sizeof(Guc_variable));
 }
 
 /**
@@ -258,7 +261,7 @@ extern void define_custom_string_variable(
     var->context = context;
     var->vartype = STRING;
 
-    push_to_map(map, name, var);
+    push_to_map(map, name, var, sizeof(Guc_variable));
 }
 
 /**
