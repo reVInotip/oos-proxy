@@ -1,4 +1,4 @@
-#include "../../../include/boss_operations/boss_operations.h"
+#include "boss_operations/boss_operations.h"
 #include <stdio.h>
 #include <unistd.h>
 

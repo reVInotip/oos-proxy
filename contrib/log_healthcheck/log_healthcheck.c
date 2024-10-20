@@ -1,5 +1,5 @@
-#include "../../../include/logger/logger.h"
-#include "../../../include/boss_operations/boss_operations.h"
+#include "logger/logger.h"
+#include "boss_operations/boss_operations.h"
 #include <stdio.h>
 #include <unistd.h>
 #include <stdbool.h>

@@ -9,13 +9,20 @@
 #include <string.h>
 #include <assert.h>
 #include <unistd.h>
-#include "../include/utils/stack.h"
-#include "../include/shlib_operations/operations.h"
-#include "../include/logger/logger.h"
-#include "../include/guc/guc.h"
-#include "../include/memory/allocator.h"
-#include "../include/memory/cache.h"
-#include "../include/bg_worker/bg_worker.h"
+#include "utils/stack.h"
+#include "shlib_operations/operations.h"
+#include "logger/logger.h"
+#include "guc/guc.h"
+#include "memory/allocator.h"
+#include "memory/cache.h"
+#include "bg_worker/bg_worker.h"
+#include "boss_operations/hook.h"
+
+Hook executor_start_hook = NULL;
+Hook executor_end_hook = NULL;
+
+extern void hello_from_static_lib(void);
+extern void hello_from_dynamic_lib(void);
 
 void test_alloc()
 {
@@ -79,6 +86,8 @@ void test_cache()
 
 int main(int argc, char *argv[])
 {
+    hello_from_static_lib();
+    hello_from_dynamic_lib();
     char *conf_path = get_config_path(argc, argv);
     parse_config(conf_path);
     init_logger();

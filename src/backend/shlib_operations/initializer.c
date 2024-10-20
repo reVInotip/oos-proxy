@@ -3,10 +3,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include "../../include/utils/stack.h"
-#include "../../include/shlib_operations/operations.h"
-#include "../../include/logger/logger.h"
-#include "../../include/boss_operations/boss_operations.h"
+#include <stdio.h>
+#include "utils/stack.h"
+#include "shlib_operations/operations.h"
+#include "logger/logger.h"
+#include "boss_operations/boss_operations.h"
+#include "boss_operations/hook.h"
 
 /**
     \brief Initialize all extensions (call init function with some args)
@@ -14,7 +16,7 @@
     \param [in] args - arguments for extension init function
     \return nothing
 */
-extern void init_all_exetensions(Stack_ptr lib_stack)
+void init_all_exetensions(Stack_ptr lib_stack)
 {   
     assert(lib_stack != NULL);
 
@@ -42,4 +44,8 @@ extern void init_all_exetensions(Stack_ptr lib_stack)
         curr_stack = curr_stack->next_elem;
     }
     free(op_func);
+
+    if (executor_start_hook) {
+        executor_start_hook();
+    }
 }
