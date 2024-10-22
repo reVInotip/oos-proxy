@@ -5,9 +5,10 @@
 #include <assert.h>
 #include <stdio.h>
 #include <errno.h>
-#include "../../include/utils/stack.h"
-#include "../../include/shlib_operations/operations.h"
-#include "../../include/logger/logger.h"
+#include "utils/stack.h"
+#include "shlib_operations/operations.h"
+#include "logger/logger.h"
+#include "guc/guc.h"
 
 // if system macros is __USE_MUSC undefined
 #ifndef __USE_MISC
@@ -84,6 +85,8 @@ extern void default_loader(Stack_ptr *stack, char *path_to_source, int curr_dept
         return;
     }
 
+    Guc_data plugins = get_config_parameter("plugins", C_MAIN);
+
     char sample[256] = {'\0'};
     // Get sample of sahred library from path. The sample looks like: top dir from path + ".so"
     get_sample(path_to_source, sample);
@@ -103,7 +106,7 @@ extern void default_loader(Stack_ptr *stack, char *path_to_source, int curr_dept
     {   
         // if file is regular file and its name matches with sample for current directory
         // we load it to RAM
-        if (entry->d_type == DT_REG && !strcmp(entry->d_name, sample))
+        if (entry->d_type == DT_REG && !strcmp(entry->d_name, sample) && !strcmp(sample, plugins.str))
         {   
             //create full path to sample
             char *full_name = create_new_string(path_to_source, sample, '/');
