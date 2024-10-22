@@ -30,7 +30,7 @@ typedef struct conf_string
  * \param [out] string_is_incorrect - Is string incorrect (or comment)?
  * \return nothing
  */
-void analize_config_string(const char *conf_str, Conf_string *converted_conf_str, bool *value_is_digit, bool *string_is_incorrect)
+Config_vartype analize_config_string(const char *conf_str, Conf_string *converted_conf_str, bool *string_is_incorrect)
 {   
     assert(conf_str != NULL);
     assert(converted_conf_str != NULL);
@@ -39,7 +39,8 @@ void analize_config_string(const char *conf_str, Conf_string *converted_conf_str
                                 // It needs for validating and separation key and value
     bool is_key_exists = false;
     bool is_value_exists = false;
-    *value_is_digit = true;
+    bool value_is_digit = true;
+    bool value_is_double = true;
     *string_is_incorrect = true;
     int k = 0;
     for (size_t i = 0; i < strlen(conf_str); i++)
@@ -53,7 +54,7 @@ void analize_config_string(const char *conf_str, Conf_string *converted_conf_str
         {
             if (*string_is_incorrect)
             {
-                return;
+                return LONG;
             }
             break;
         }
@@ -73,7 +74,7 @@ void analize_config_string(const char *conf_str, Conf_string *converted_conf_str
             if (k >= MAX_CONFIG_VALUE_SIZE || !is_key_exists)
             {
                 *string_is_incorrect = true;
-                return;
+                return LONG;
             }
             *string_is_incorrect = false;
 
@@ -82,7 +83,12 @@ void analize_config_string(const char *conf_str, Conf_string *converted_conf_str
 
             if (conf_str[i] < '0' || conf_str[i] > '9')
             {
-                *value_is_digit = false;
+                value_is_digit = false;
+            }
+
+            if ((conf_str[i] < '0' || conf_str[i] > '9') && conf_str[i] != '.')
+            {
+                value_is_double = false;
             }
         }
         // else we write key
@@ -91,7 +97,7 @@ void analize_config_string(const char *conf_str, Conf_string *converted_conf_str
             if (k >= MAX_CONFIG_KEY_SIZE)
             {
                 *string_is_incorrect = true;
-                return;
+                return LONG;
             }
             *string_is_incorrect = false;
             is_key_exists = true;
@@ -106,13 +112,21 @@ void analize_config_string(const char *conf_str, Conf_string *converted_conf_str
     if (!is_value_exists)
     {
         *string_is_incorrect = true;
-        return;
+        return LONG;
     }
 
-    if (*value_is_digit)
+    if (value_is_digit)
     {
         converted_conf_str->value->num = atol(converted_conf_str->value->str);
+        return LONG;
     }
+    else if (value_is_double)
+    {
+        converted_conf_str->value->numd = atof(converted_conf_str->value->str);
+        return DOUBLE;
+    }
+    
+    return STRING;
 }
 
 extern void destroy_guc_table()
@@ -181,7 +195,6 @@ extern void parse_config(char *path_to_config)
     char conf_raw_string[MAX_CONFIG_KEY_SIZE + MAX_CONFIG_VALUE_SIZE + 2] = {'\0'};
     Guc_variable var;
     Conf_string conf_string;
-    bool value_is_digit = true;
     bool string_is_incorrect = true;
 
     // We read the line up to the line break character and read it separately so as not to interfere
@@ -191,13 +204,15 @@ extern void parse_config(char *path_to_config)
         conf_string.value = &(var.elem);
 
         // get key and value from config string
-        analize_config_string(conf_raw_string, &conf_string, &value_is_digit, &string_is_incorrect);
+        Config_vartype type = analize_config_string(conf_raw_string, &conf_string, &string_is_incorrect);
 
         if (string_is_incorrect)
             continue;
 
-        if (value_is_digit)
+        if (type == LONG)
             var.vartype = LONG;
+        else if (type == DOUBLE)
+            var.vartype = DOUBLE;
         else
             var.vartype = STRING;
 

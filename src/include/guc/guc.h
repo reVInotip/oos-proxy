@@ -40,6 +40,7 @@ typedef union guc_data
 {
     char str[MAX_CONFIG_VALUE_SIZE];
     long num;
+    double numd;
 } Guc_data;
 
 /**
@@ -69,7 +70,8 @@ typedef union guc_data
 typedef enum
 {
     LONG,
-    STRING
+    STRING,
+    DOUBLE
 } Config_vartype;
 
 /**
