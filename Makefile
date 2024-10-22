@@ -1,4 +1,4 @@
-export MAIN_DIR = /home/grisha/Projects/oos_new_labs/proxy-grisha
+export MAIN_DIR = $(CURDIR)
 export INCLUDE_PATH = $(MAIN_DIR)/src/include
 export SOURCE = $(MAIN_DIR)/install
 
