@@ -210,9 +210,14 @@ extern void init_logger()
 
     bool is_log_dir_exists = false;
     Guc_data log_dir_name = get_config_parameter("log_dir_name", C_MAIN);
-    Guc_data log1_file_name = get_config_parameter("log1_file_name", C_MAIN);
-    Guc_data log2_file_name = get_config_parameter("log2_file_name", C_MAIN);
+    Guc_data log_file_names = get_config_parameter("log_file_names", C_MAIN);
     
+    if (log_file_names.arr_str.count_elements != 2)
+    {
+        free(log_file);
+        write_stderr("Wrong count of .log files (expected 2, but got %d)", log_file_names.arr_str.count_elements);
+    }
+
     DIR *source = opendir(".");
     struct dirent* entry;
 
@@ -229,8 +234,8 @@ extern void init_logger()
 
     log_file->curr_log_file = 0;
 
-    log_file->log_file_name[0] = log1_file_name.str;
-    log_file->log_file_name[1] = log2_file_name.str;
+    log_file->log_file_name[0] = log_file_names.arr_str.data[0];
+    log_file->log_file_name[1] = log_file_names.arr_str.data[1];
 
     bool is_log_file_complete[2] = {false, false};
 
