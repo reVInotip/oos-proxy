@@ -123,8 +123,7 @@ extern void define_custom_string_variable_op(char *name, const char *descr, cons
     if 
     (
         strlen(name) + 1 > MAX_NAME_LENGTH ||
-        strlen(descr) + 1 > MAX_DESCRIPTION_LENGTH ||
-        strlen(boot_value) + 1 > MAX_CONFIG_VALUE_SIZE
+        strlen(descr) + 1 > MAX_DESCRIPTION_LENGTH
     )
     {
         elog(ERROR, "Size of arguments too large");

@@ -14,7 +14,7 @@
 #pragma once
 
 // The maximum number of bytes that can contain a config value
-#define MAX_CONFIG_VALUE_SIZE 300
+#define CONFIG_VALUE_SIZE 1024
 
 // The maximum number of bytes that can contain a config key
 #define MAX_CONFIG_KEY_SIZE 100
@@ -38,7 +38,7 @@
  */
 typedef union guc_data
 {
-    char str[MAX_CONFIG_VALUE_SIZE];
+    char *str;
     long num;
     double numd;
 } Guc_data;

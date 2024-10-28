@@ -1,4 +1,7 @@
-
+/**
+ * TODO
+ *  Split analize_config_string function with read_config_string function
+ */
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -6,11 +9,13 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <unistd.h>
-#include "../../include/logger/logger.h"
-#include "../../include/utils/hash_map.h"
-#include "../../include/guc/guc.h"
+#include "logger/logger.h"
+#include "utils/hash_map.h"
+#include "utils/stack.h"
+#include "guc/guc.h"
 
-Hash_map_ptr map;
+static Hash_map_ptr map;
+static Stack_ptr alloc_mem_stack;
 
 /**
  * \brief Type of config string (key = value)
@@ -26,14 +31,15 @@ typedef struct conf_string
  * check if string is invalid, discards comments or empty strings
  * \param [in] conf_str - Raw config string
  * \param [out] converted_conf_str - key and value extracted from string
- * \param [out] value_is_digit - Is value digit or not?
  * \param [out] string_is_incorrect - Is string incorrect (or comment)?
- * \return nothing
+ * \return Type of config variable
+ * \note Memory for string interpretation will be allocated automatically, so after use you should free it
  */
 Config_vartype analize_config_string(const char *conf_str, Conf_string *converted_conf_str, bool *string_is_incorrect)
 {   
     assert(conf_str != NULL);
     assert(converted_conf_str != NULL);
+    converted_conf_str->value->str = (char *)malloc(strlen(conf_str));
 
     bool is_equal_sign = false; // Was equals sign (=) founded in string
                                 // It needs for validating and separation key and value
@@ -71,7 +77,7 @@ Config_vartype analize_config_string(const char *conf_str, Conf_string *converte
         if (is_equal_sign)
         {   
             is_value_exists = true;
-            if (k >= MAX_CONFIG_VALUE_SIZE || !is_key_exists)
+            if (!is_key_exists)
             {
                 *string_is_incorrect = true;
                 return LONG;
@@ -94,11 +100,6 @@ Config_vartype analize_config_string(const char *conf_str, Conf_string *converte
         // else we write key
         else
         {   
-            if (k >= MAX_CONFIG_KEY_SIZE)
-            {
-                *string_is_incorrect = true;
-                return LONG;
-            }
             *string_is_incorrect = false;
             is_key_exists = true;
 
@@ -115,14 +116,17 @@ Config_vartype analize_config_string(const char *conf_str, Conf_string *converte
         return LONG;
     }
 
+    void *pointer = converted_conf_str->value->str;
     if (value_is_digit)
     {
         converted_conf_str->value->num = atol(converted_conf_str->value->str);
+        free(pointer);
         return LONG;
     }
     else if (value_is_double)
     {
         converted_conf_str->value->numd = atof(converted_conf_str->value->str);
+        free(pointer);
         return DOUBLE;
     }
     
@@ -131,6 +135,11 @@ Config_vartype analize_config_string(const char *conf_str, Conf_string *converte
 
 extern void destroy_guc_table()
 {
+    while (alloc_mem_stack)
+    {
+        void *pointer = pop_from_stack(&alloc_mem_stack);
+        free(pointer);
+    }
     destroy_map(&map);
 }
 
@@ -161,11 +170,52 @@ void init_guc_by_default()
     define_custom_long_variable("memory_for_cache", "Memory allocated for cache (in bytes)", 5242880, C_MAIN | C_STATIC);
 }
 
+bool is_eof(FILE *config)
+{
+    char c = fgetc(config);
+    if (c == EOF)
+        return true;
+    
+    fseek(config, -1, SEEK_CUR);
+    return false;
+}
+
+bool read_config_string(FILE *config, char **conf_raw_string, size_t size)
+{
+    while (!is_eof(config))
+    {
+        if (fgets(*conf_raw_string, size, config) == NULL)
+            break;
+
+        if ((*conf_raw_string)[strlen(*conf_raw_string) - 1] != '\n')
+        {   
+            // If read last string (it doesn`t contains '\n') return true for analize it
+            // If this not done then looping will occur (because fseek shift our position by number of reading bytes)
+            if (is_eof(config))
+                return true;
+            
+            fseek(config, (-1) * strlen(*conf_raw_string), SEEK_CUR);
+            *conf_raw_string = (char *)realloc(*conf_raw_string, size * 2);
+            size *= 2;
+            continue;
+        }
+        else
+            (*conf_raw_string)[strlen(*conf_raw_string) - 1] = '\0';
+
+        return true;
+    }
+
+    if (ferror(config))
+        write_stderr("Error occured while reading config file: %s", strerror(errno));
+
+    return false;
+}
+
 /**
  * \brief Parse configuration file and create GUC variables from config variables
  * \param [in] path_to_config - path to configuration file. If it NULL default path will be used
  */
-extern void parse_config(char *path_to_config)
+void parse_config(char *path_to_config)
 {
     FILE *config;
     if (path_to_config == NULL)
@@ -184,6 +234,7 @@ extern void parse_config(char *path_to_config)
     }
 
     map = create_map();
+    alloc_mem_stack = create_stack();
     
     if (config == NULL)
     {  
@@ -192,16 +243,16 @@ extern void parse_config(char *path_to_config)
         return;
     }
 
-    char conf_raw_string[MAX_CONFIG_KEY_SIZE + MAX_CONFIG_VALUE_SIZE + 2] = {'\0'};
+    char *conf_raw_string = (char *)malloc(MAX_CONFIG_KEY_SIZE + CONFIG_VALUE_SIZE + 2);
     Guc_variable var;
     Conf_string conf_string;
+    conf_string.value = &(var.elem);
     bool string_is_incorrect = true;
 
     // We read the line up to the line break character and read it separately so as not to interfere
-    while (fscanf(config, "%[^'\n'] %*['\n']", conf_raw_string) != EOF)
+    while (read_config_string(config, &conf_raw_string, MAX_CONFIG_KEY_SIZE + CONFIG_VALUE_SIZE + 2))
     {
         memset(conf_string.key, 0, MAX_CONFIG_KEY_SIZE);
-        conf_string.value = &(var.elem);
 
         // get key and value from config string
         Config_vartype type = analize_config_string(conf_raw_string, &conf_string, &string_is_incorrect);
@@ -214,7 +265,10 @@ extern void parse_config(char *path_to_config)
         else if (type == DOUBLE)
             var.vartype = DOUBLE;
         else
+        {
+            push_to_stack(&alloc_mem_stack, var.elem.str);
             var.vartype = STRING;
+        }
 
         // all config varibles is immutable
         var.context = C_MAIN | C_STATIC;
@@ -223,6 +277,8 @@ extern void parse_config(char *path_to_config)
 
         push_to_map(map, conf_string.key, &var, sizeof(Guc_variable));
     }
+
+    free(conf_raw_string);
 
     if (fclose(config) == EOF)
     {
@@ -272,6 +328,7 @@ extern void define_custom_string_variable(
     Guc_variable *var = (Guc_variable *) malloc(sizeof(Guc_variable));
     strcpy(var->name, name);
     strcpy(var->descripton, descr);
+    var->elem.str = (char *) malloc(strlen(boot_value) + 1);
     strcpy(var->elem.str, boot_value);
     var->context = context;
     var->vartype = STRING;

@@ -44,7 +44,10 @@ typedef struct hash_map_elem
 
 typedef Hash_map_elem *Hash_map_ptr;
 
-// Use if you don`t need priority
+/**
+ * \brief Push element to hash ma. Use if you don`t need priority
+ * \note This function makes copy of elemnts data, so you can push elements from stack too
+*/
 #define push_to_map(map, key, value, value_size) \
     do \
     { \

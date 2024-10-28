@@ -38,9 +38,9 @@ enum
 
 // This struct describe log file
 typedef struct log_file {
-    FILE                                 *stream; // Log file that is open now
-    char log_file_name[2][MAX_CONFIG_VALUE_SIZE]; // Names of both log files
-    int                            curr_log_file; // Index of current log file name
+    FILE           *stream; // Log file that is open now
+    char *log_file_name[2]; // Names of both log files
+    int      curr_log_file; // Index of current log file name
 } Log_file;
 
 Log_file *log_file;
@@ -229,8 +229,8 @@ extern void init_logger()
 
     log_file->curr_log_file = 0;
 
-    strncpy(log_file->log_file_name[0], log1_file_name.str, sizeof(log1_file_name.str));
-    strncpy(log_file->log_file_name[1], log2_file_name.str, sizeof(log2_file_name.str));
+    log_file->log_file_name[0] = log1_file_name.str;
+    log_file->log_file_name[1] = log2_file_name.str;
 
     bool is_log_file_complete[2] = {false, false};
 
