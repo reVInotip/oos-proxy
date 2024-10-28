@@ -24,6 +24,7 @@ typedef struct conf_string
 {
     char key[MAX_CONFIG_KEY_SIZE];
     Guc_data *value;
+    uint64_t count_values;
 } Conf_string;
 
 /**
@@ -39,16 +40,20 @@ Config_vartype analize_config_string(const char *conf_str, Conf_string *converte
 {   
     assert(conf_str != NULL);
     assert(converted_conf_str != NULL);
-    converted_conf_str->value->str = (char *)malloc(strlen(conf_str));
-
+    char *data = (char *)malloc(strlen(conf_str));
+    void *arr_data = NULL;
     bool is_equal_sign = false; // Was equals sign (=) founded in string
                                 // It needs for validating and separation key and value
     bool is_key_exists = false;
     bool is_value_exists = false;
     bool value_is_digit = true;
     bool value_is_double = true;
-    *string_is_incorrect = true;
+    bool value_is_array = false;
+
+    bool is_close_bracket = false;
+    Config_vartype array_type = UNINIT;
     int k = 0;
+    converted_conf_str->count_values = 0;
     for (size_t i = 0; i < strlen(conf_str); i++)
     { 
         if (conf_str[i] == ' ')
@@ -60,7 +65,8 @@ Config_vartype analize_config_string(const char *conf_str, Conf_string *converte
         {
             if (*string_is_incorrect)
             {
-                return LONG;
+                *string_is_incorrect = true;
+                goto ERROR_EXIT;
             }
             break;
         }
@@ -78,14 +84,17 @@ Config_vartype analize_config_string(const char *conf_str, Conf_string *converte
         {   
             is_value_exists = true;
             if (!is_key_exists)
-            {
-                *string_is_incorrect = true;
-                return LONG;
-            }
+                goto ERROR_EXIT;
             *string_is_incorrect = false;
 
-            converted_conf_str->value->str[k] = conf_str[i];
+            data[k] = conf_str[i];
             ++k;
+
+            if (is_close_bracket)
+            {
+                *string_is_incorrect = true;
+                goto ERROR_EXIT;
+            }
 
             if (conf_str[i] < '0' || conf_str[i] > '9')
             {
@@ -95,6 +104,53 @@ Config_vartype analize_config_string(const char *conf_str, Conf_string *converte
             if ((conf_str[i] < '0' || conf_str[i] > '9') && conf_str[i] != '.')
             {
                 value_is_double = false;
+            }
+
+            if (conf_str[i] == '[' && k == 1 && !value_is_array)
+            {
+                value_is_array = true;
+                value_is_digit = true;
+                value_is_double = true;
+                k--;
+            }
+
+            if ((conf_str[i] == ',' || conf_str[i] == ']') && k > 1 && value_is_array)
+            {
+                ++converted_conf_str->count_values;
+                if (value_is_digit)
+                {
+                    if (array_type != ARR_LONG && array_type != UNINIT)
+                        goto ERROR_EXIT;
+
+                    arr_data = realloc(arr_data, sizeof(long) * converted_conf_str->count_values);
+                    ((long *) arr_data)[converted_conf_str->count_values - 1] = atol(data);
+                    k = 0;
+                    array_type = ARR_LONG;
+                }
+                else if (value_is_double)
+                {
+                    if (array_type != ARR_DOUBLE && array_type != UNINIT)
+                        goto ERROR_EXIT;
+                    
+                    arr_data = realloc(arr_data, sizeof(double) * converted_conf_str->count_values);
+                    ((double *) arr_data)[converted_conf_str->count_values - 1] = atof(data);
+                    k = 0;
+                    array_type = ARR_DOUBLE;
+                }
+                else
+                {
+                    if (array_type != ARR_STRING && array_type != UNINIT)
+                        goto ERROR_EXIT;
+                    
+                    arr_data = realloc(arr_data, sizeof(char *) * converted_conf_str->count_values);
+                    data[k - 1] = '\0';
+                    ((char **) arr_data)[converted_conf_str->count_values - 1] = data;
+                    data = (char *) malloc(strlen(conf_str));
+                    k = 0;
+                    array_type = ARR_STRING;
+                }
+
+                is_close_bracket = conf_str[i] == ']';
             }
         }
         // else we write key
@@ -108,29 +164,49 @@ Config_vartype analize_config_string(const char *conf_str, Conf_string *converte
         }
     }
 
-    converted_conf_str->value->str[k] = '\0';
+    data[k] = '\0';
 
     if (!is_value_exists)
-    {
-        *string_is_incorrect = true;
-        return LONG;
-    }
+        goto ERROR_EXIT;
 
-    void *pointer = converted_conf_str->value->str;
     if (value_is_digit)
     {
-        converted_conf_str->value->num = atol(converted_conf_str->value->str);
-        free(pointer);
+        converted_conf_str->value->num = atol(data);
+        free(data);
         return LONG;
     }
     else if (value_is_double)
     {
-        converted_conf_str->value->numd = atof(converted_conf_str->value->str);
-        free(pointer);
+        converted_conf_str->value->numd = atof(data);
+        free(data);
         return DOUBLE;
     }
-    
+    else if (value_is_array)
+    {   
+        if (array_type == ARR_LONG)
+            converted_conf_str->value->arr_long.data = arr_data;
+        else if (array_type == ARR_DOUBLE)
+            converted_conf_str->value->arr_double.data = arr_data;
+        else
+            converted_conf_str->value->arr_str.data = arr_data;
+        
+        return array_type;
+    }
+
+    converted_conf_str->value->str = data;
     return STRING;
+
+ERROR_EXIT:
+    free(data);
+
+    while (converted_conf_str->count_values != 0 && array_type == ARR_STRING)
+    {
+        --converted_conf_str->count_values;
+        free(((char **) arr_data)[converted_conf_str->count_values]);
+    }
+
+    if (arr_data) free(arr_data);
+    return UNINIT;
 }
 
 extern void destroy_guc_table()
@@ -163,8 +239,7 @@ char *get_config_path(int argc, char *argv[])
 void init_guc_by_default()
 {
     define_custom_long_variable("log_capacity", "Capacity of .log file (in bytes)", 1024, C_MAIN | C_STATIC);
-    define_custom_string_variable("log1_file_name", "First file with logs", "log/oos_proxy_1.log", C_MAIN | C_STATIC);
-    define_custom_string_variable("log2_file_name", "Second file with logs", "log/oos_proxy_2.log", C_MAIN | C_STATIC);
+    define_custom_string_variable("log1_file_name", "Files with logs", "[log/oos_proxy_1.log, log/oos_proxy_2.log]", C_MAIN | C_STATIC);
     define_custom_string_variable("log_dir_name", "Name of dirrectory with .log files", "log", C_MAIN | C_STATIC);
     define_custom_long_variable("info_in_log", "Should write INFO messages to logs or not", 1, C_MAIN | C_STATIC);
     define_custom_long_variable("memory_for_cache", "Memory allocated for cache (in bytes)", 5242880, C_MAIN | C_STATIC);
@@ -257,18 +332,34 @@ void parse_config(char *path_to_config)
         // get key and value from config string
         Config_vartype type = analize_config_string(conf_raw_string, &conf_string, &string_is_incorrect);
 
-        if (string_is_incorrect)
+        if (string_is_incorrect || type == UNINIT)
             continue;
 
-        if (type == LONG)
-            var.vartype = LONG;
-        else if (type == DOUBLE)
-            var.vartype = DOUBLE;
-        else
+        if (type == ARR_LONG)
         {
-            push_to_stack(&alloc_mem_stack, var.elem.str);
-            var.vartype = STRING;
+            push_to_stack(&alloc_mem_stack, var.elem.arr_long.data);
+            var.elem.arr_long.count_elements = conf_string.count_values;
         }
+        else if (type == ARR_DOUBLE)
+        {
+            push_to_stack(&alloc_mem_stack, var.elem.arr_double.data);
+            var.elem.arr_double.count_elements = conf_string.count_values;
+        }
+        else if (type == ARR_STRING)
+        {
+            push_to_stack(&alloc_mem_stack, var.elem.arr_str.data);
+            uint64_t counter = conf_string.count_values;
+            while (counter != 0)
+            {
+                --counter;
+                push_to_stack(&alloc_mem_stack, var.elem.arr_str.data[counter]);
+            }
+            var.elem.arr_str.count_elements = conf_string.count_values;
+        }
+        else if (type == STRING)
+            push_to_stack(&alloc_mem_stack, var.elem.str);
+
+        var.vartype = type;
 
         // all config varibles is immutable
         var.context = C_MAIN | C_STATIC;

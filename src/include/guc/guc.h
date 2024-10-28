@@ -31,6 +31,24 @@
 // Max length for name of configuraion varibale
 #define MAX_NAME_LENGTH 50
 
+typedef struct Arr_long
+{
+    uint32_t count_elements;
+    long              *data;
+} Arr_long;
+
+typedef struct Arr_double
+{
+    uint32_t count_elements;
+    double            *data;
+} Arr_double;
+
+typedef struct Arr_string
+{
+    uint32_t count_elements;
+    char             **data;
+} Arr_string;
+
 /**
  * \brief Contains the value of global variable
  * This value can be simultaneously interpreted as both a number and a
@@ -38,9 +56,15 @@
  */
 typedef union guc_data
 {
-    char *str;
-    long num;
-    double numd;
+    // Simple types
+    char   *str; // string
+    long    num; // integer
+    double numd; // folating point number
+
+    // Array types
+    Arr_string    arr_str; // array of string
+    Arr_long     arr_long; // array of integer
+    Arr_double arr_double; // array of folating point number
 } Guc_data;
 
 /**
@@ -71,7 +95,11 @@ typedef enum
 {
     LONG,
     STRING,
-    DOUBLE
+    DOUBLE,
+    ARR_LONG,
+    ARR_STRING,
+    ARR_DOUBLE,
+    UNINIT // special value, used for parser
 } Config_vartype;
 
 /**
@@ -79,11 +107,11 @@ typedef enum
  */
 typedef struct guc_variable
 {   
-    Guc_data elem;
-    int8_t context;
-    Config_vartype vartype;
+    Guc_data                           elem;
+    int8_t                          context;
+    Config_vartype                  vartype;
     char descripton[MAX_DESCRIPTION_LENGTH];
-    char name[MAX_NAME_LENGTH];
+    char              name[MAX_NAME_LENGTH];
 } Guc_variable;
 
 extern void destroy_guc_table();
