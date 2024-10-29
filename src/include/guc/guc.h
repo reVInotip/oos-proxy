@@ -115,7 +115,6 @@ typedef struct guc_variable
 } Guc_variable;
 
 extern void destroy_guc_table();
-extern char *get_config_path(int argc, char *argv[]);
 extern void parse_config(char *path_to_config);
 extern void define_custom_long_variable(
     char *name,

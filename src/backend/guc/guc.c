@@ -219,23 +219,6 @@ extern void destroy_guc_table()
     destroy_map(&map);
 }
 
-/**
- * \brief Get path to configuration file from command line arguments
- * \param [in] argc - count arguments in command line (include executable file name)
- * \param [in] argv - array of command line arguments (include executable file name)
- * \return If path to config was found pointer to it in argv will be return, else
- * function return NULL
- */
-char *get_config_path(int argc, char *argv[])
-{
-    if (argc < 3)
-        return NULL;
-    else if (!strcmp(argv[1], "-c"))
-        return argv[2];
-    
-    return NULL;
-}
-
 void init_guc_by_default()
 {
     define_custom_long_variable("log_capacity", "Capacity of .log file (in bytes)", 1024, C_MAIN | C_STATIC);
@@ -295,7 +278,7 @@ void parse_config(char *path_to_config)
     FILE *config;
     if (path_to_config == NULL)
     {
-        write_stderr("Use default configuration file\n");
+        printf("Use default configuration file\n");
         config = fopen(DEFAULT_CONF_FILE_PATH, "r");
     }
     else

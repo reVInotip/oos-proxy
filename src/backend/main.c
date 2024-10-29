@@ -84,11 +84,33 @@ void test_cache()
     printf("%s", buffer);
 }
 
+int parse_command_line(int argc, char *argv[], char **conf_path)
+{
+    int c;
+    while ((c = getopt(argc, argv, "c:")) != -1)
+    {
+        switch (c)
+        {
+            case 'c':
+                strcpy(*conf_path, optarg);
+                break;
+            default:
+                write_stderr("Unknow option: %c\n", c);
+                return 1;
+        }
+    }
+
+    return 0;
+}
+
 int main(int argc, char *argv[])
 {
+    char *conf_path = NULL;
+    if (parse_command_line(argc, argv, &conf_path) != 0)
+        return 1;
+    
     hello_from_static_lib();
     hello_from_dynamic_lib();
-    char *conf_path = get_config_path(argc, argv);
     parse_config(conf_path);
     init_logger();
     init_cache();
