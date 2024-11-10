@@ -49,8 +49,10 @@ Config_vartype analize_config_string(const char *conf_str, Conf_string *converte
     bool value_is_digit = true;
     bool value_is_double = true;
     bool value_is_array = false;
+    bool value_is_string = false;
 
     bool is_close_bracket = false;
+    bool is_close_quote = false;
     Config_vartype array_type = UNINIT;
     int k = 0;
     converted_conf_str->count_values = 0;
@@ -84,7 +86,10 @@ Config_vartype analize_config_string(const char *conf_str, Conf_string *converte
         {   
             is_value_exists = true;
             if (!is_key_exists)
+            {
+                write_stderr("Error in config string: %s - Key does not exists\n", conf_str);
                 goto ERROR_EXIT;
+            }
             *string_is_incorrect = false;
 
             data[k] = conf_str[i];
@@ -92,6 +97,14 @@ Config_vartype analize_config_string(const char *conf_str, Conf_string *converte
 
             if (is_close_bracket)
             {
+                write_stderr("Error in config string: %s - Wrong value\n", conf_str);
+                *string_is_incorrect = true;
+                goto ERROR_EXIT;
+            }
+            
+            if (is_close_quote && !value_is_array)
+            {
+                write_stderr("Error in config string: %s - Wrong value\n", conf_str);
                 *string_is_incorrect = true;
                 goto ERROR_EXIT;
             }
@@ -106,12 +119,29 @@ Config_vartype analize_config_string(const char *conf_str, Conf_string *converte
                 value_is_double = false;
             }
 
-            if (conf_str[i] == '[' && k == 1 && !value_is_array)
+            if (conf_str[i] == '[' && k == 1)
             {
                 value_is_array = true;
                 value_is_digit = true;
                 value_is_double = true;
                 k--;
+            }
+
+            if (conf_str[i] == '"')
+            {
+                k--;
+                if (k == 0)
+                    value_is_string = true;
+                else if (value_is_array)
+                {
+                    is_close_quote = true;
+                    continue;
+                }
+                else
+                {
+                    is_close_quote = true;
+                    break;
+                }
             }
 
             if ((conf_str[i] == ',' || conf_str[i] == ']') && k > 1 && value_is_array)
@@ -120,7 +150,10 @@ Config_vartype analize_config_string(const char *conf_str, Conf_string *converte
                 if (value_is_digit)
                 {
                     if (array_type != ARR_LONG && array_type != UNINIT)
+                    {
+                        write_stderr("Error in config string: %s - All elements in array should has equal type\n", conf_str);
                         goto ERROR_EXIT;
+                    }
 
                     arr_data = realloc(arr_data, sizeof(long) * converted_conf_str->count_values);
                     ((long *) arr_data)[converted_conf_str->count_values - 1] = atol(data);
@@ -130,17 +163,23 @@ Config_vartype analize_config_string(const char *conf_str, Conf_string *converte
                 else if (value_is_double)
                 {
                     if (array_type != ARR_DOUBLE && array_type != UNINIT)
+                    {
+                        write_stderr("Error in config string: %s - All elements in array should has equal type\n", conf_str);
                         goto ERROR_EXIT;
+                    }
                     
                     arr_data = realloc(arr_data, sizeof(double) * converted_conf_str->count_values);
                     ((double *) arr_data)[converted_conf_str->count_values - 1] = atof(data);
                     k = 0;
                     array_type = ARR_DOUBLE;
                 }
-                else
+                else if (value_is_string)
                 {
                     if (array_type != ARR_STRING && array_type != UNINIT)
+                    {
+                        write_stderr("Error in config string: %s - All elements in array should has equal type\n", conf_str);
                         goto ERROR_EXIT;
+                    }
                     
                     arr_data = realloc(arr_data, sizeof(char *) * converted_conf_str->count_values);
                     data[k - 1] = '\0';
@@ -148,6 +187,12 @@ Config_vartype analize_config_string(const char *conf_str, Conf_string *converte
                     data = (char *) malloc(strlen(conf_str));
                     k = 0;
                     array_type = ARR_STRING;
+                    value_is_string = false;
+                }
+                else
+                {
+                    write_stderr("Error in config string: %s - All elements in array should has equal type\n", conf_str);
+                    goto ERROR_EXIT;
                 }
 
                 is_close_bracket = conf_str[i] == ']';
@@ -168,6 +213,18 @@ Config_vartype analize_config_string(const char *conf_str, Conf_string *converte
 
     if (!is_value_exists)
         goto ERROR_EXIT;
+    
+    if (!is_close_bracket && value_is_array)
+    {
+        write_stderr("Error in config string: %s - Array should end on close bracket\n", conf_str);
+        goto ERROR_EXIT;
+    }
+
+    if (!is_close_quote && value_is_string)
+    {
+        write_stderr("Error in config string: %s - String should end on close quote\n", conf_str);
+        goto ERROR_EXIT;
+    }
 
     if (value_is_digit)
     {
@@ -192,9 +249,13 @@ Config_vartype analize_config_string(const char *conf_str, Conf_string *converte
         
         return array_type;
     }
-
-    converted_conf_str->value->str = data;
-    return STRING;
+    else if (value_is_string)
+    {
+        converted_conf_str->value->str = data;
+        return STRING;
+    }
+    else
+        write_stderr("Error in config string: %s - Can not determine value type\n", conf_str);
 
 ERROR_EXIT:
     free(data);
