@@ -5,6 +5,7 @@
  */
 #include <stdlib.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 #pragma once
 
@@ -64,6 +65,7 @@ typedef struct boss_op_func
     void (*register_background_worker) (char *callback_name, char *bg_worker_name, bool need_observer);
     void (*define_custom_long_variable_op) (char *name, const char *descr, const long boot_value, const int8_t context);
     void (*define_custom_string_variable_op) (char *name, const char *descr, const char *boot_value, const int8_t context);
+    char *(*get_config_string_parameter_op) (const char *name, const int8_t context);
 } Boss_op_func;
 
 extern void init_boss_op();
@@ -78,6 +80,7 @@ extern void define_custom_long_variable_op(char *name, const char *descr, const 
 extern void define_custom_string_variable_op(char *name, const char *descr, const char *boot_value, const int8_t context);
 extern void print_cache_op(const char *key);
 extern void register_background_worker(char *callback_name, char *bg_worker_name, bool need_observer);
+extern char *get_config_string_parameter_op(const char *name, const int8_t context);
 
 extern void *get_stack_top(Boss_op_name *op_name);
 extern void clear_bg_worker_info(BGWorker_data *bg_worker_data);

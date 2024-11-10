@@ -8,10 +8,10 @@ LDFLAGS = -ldl -export-dynamic
 LDFLAGS_DEBUG = -fsanitize=address,leak,undefined
 ROOT = src/backend
 BIN_NAME = proxy
-OBJ = bg_worker.o boss_operations.o guc.o
+OBJ = bg_worker.o boss_operations.o guc.o master.o
 MAIN_OBJ = main.o
 LIBS_LINK = -lutils -loperations -lmemory -llogger -lstatic -ldynamic
-LIBS = utils.a operations.a memory.a logger.so static.a dynamic.so
+LIBS = utils.a operations.a memory.a static.a dynamic.so logger.so
 
 all:
 	make clean_source_dir

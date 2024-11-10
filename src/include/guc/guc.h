@@ -8,8 +8,12 @@
  * varibales in your programm and not be afraid that someone changes their values. Also you can
  * create your own safe global varible using a special method.
  * I implemented it using a hash map.
+ * 
+ * WARNING You should use functions declarated in this file for working with GUC variables
+ *  Do not try to do it directly, this is undefined behaviour
  */
 #include <stdint.h>
+#include <stdbool.h>
 
 #pragma once
 
@@ -74,7 +78,8 @@ typedef union guc_data
  *        C_*_STATIC - variable can not be changed after it was initialize
  *        C_*_DYNAMIC - variable be changed after it was initialize
  *        MAIN - variable availiable only in main process (the boss)
- *        USER - varibale availiable only in bacground worker process
+ *        USER - varibale availiable only in bakground worker process
+ * WARNING Context system in working
  */
 
 #define C_STATIC 0b00000000
@@ -84,7 +89,7 @@ typedef union guc_data
 
 #define is_dynamic(contest) (((context) & 0b00000001) >= 1)
 #define is_main(contest) (((context) & 0b00000010) >= 1)
-#define get_identify(context) ((context) & 0b00000010)
+#define get_identify(context) ((context) & 0b00000010) // leaves only the bit that definesv MAIN or USER context
 #define equals(context1, context2) ((~(context1) & ~(context2)) | ((context1) & (context2)))
 
 /**
@@ -99,7 +104,7 @@ typedef enum
     ARR_LONG,
     ARR_STRING,
     ARR_DOUBLE,
-    UNINIT // special value, used for parser
+    UNINIT // special value
 } Config_vartype;
 
 /**
@@ -115,7 +120,7 @@ typedef struct guc_variable
 } Guc_variable;
 
 extern void destroy_guc_table();
-extern void parse_config(char *path_to_config);
+extern void parse_config();
 extern void define_custom_long_variable(
     char *name,
     const char *descr,
@@ -128,3 +133,6 @@ extern void define_custom_string_variable(
     const int8_t context);
 extern Guc_data get_config_parameter(const char *name, const int8_t context);
 extern void set_config_parameter(const char *name, const Guc_data data, const int8_t context);
+extern Config_vartype get_config_parameter_type(const char *name, const int8_t context);
+extern bool is_var_exists_in_config(const char *name, const int8_t context);
+extern void create_guc_table();

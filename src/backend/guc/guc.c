@@ -209,7 +209,7 @@ ERROR_EXIT:
     return UNINIT;
 }
 
-extern void destroy_guc_table()
+void destroy_guc_table()
 {
     while (alloc_mem_stack)
     {
@@ -221,7 +221,7 @@ extern void destroy_guc_table()
 
 void init_guc_by_default()
 {
-    define_custom_long_variable("log_capacity", "Capacity of .log file (in bytes)", 1024, C_MAIN | C_STATIC);
+    define_custom_long_variable("log_file_size_limit", "Capacity of .log file (in bytes)", 1024, C_MAIN | C_STATIC);
     define_custom_string_variable("log1_file_name", "Files with logs", "[log/oos_proxy_1.log, log/oos_proxy_2.log]", C_MAIN | C_STATIC);
     define_custom_string_variable("log_dir_name", "Name of dirrectory with .log files", "log", C_MAIN | C_STATIC);
     define_custom_long_variable("info_in_log", "Should write INFO messages to logs or not", 1, C_MAIN | C_STATIC);
@@ -269,29 +269,38 @@ bool read_config_string(FILE *config, char **conf_raw_string, size_t size)
     return false;
 }
 
+void create_guc_table()
+{
+    map = create_map();
+}
+
 /**
  * \brief Parse configuration file and create GUC variables from config variables
- * \param [in] path_to_config - path to configuration file. If it NULL default path will be used
+ * \note If variable now exists in GUC table with C_MAIN context
+ *  (variables with user context can not be in table then main process call this function) it will be ignored
  */
-void parse_config(char *path_to_config)
+void parse_config()
 {
     FILE *config;
-    if (path_to_config == NULL)
+    if (!is_var_exists_in_config("conf_path", C_MAIN | C_STATIC))
     {
         printf("Use default configuration file\n");
+        define_custom_string_variable("conf_path", "Path to configuration file", DEFAULT_CONF_FILE_PATH, C_MAIN | C_DYNAMIC);
         config = fopen(DEFAULT_CONF_FILE_PATH, "r");
     }
     else
     {
-        config = fopen(path_to_config, "r");
+        Guc_data conf_path = get_config_parameter("conf_path", C_MAIN | C_DYNAMIC);
+        config = fopen(conf_path.str, "r");
         if (config == NULL)
         {
+            conf_path.str = DEFAULT_CONF_FILE_PATH;
+            set_config_parameter("conf_path", conf_path, C_MAIN | C_DYNAMIC);
             write_stderr("Can`t read user config file: %s. Try to read default config file\n", strerror(errno));
             config = fopen(DEFAULT_CONF_FILE_PATH, "r");
         }
     }
 
-    map = create_map();
     alloc_mem_stack = create_stack();
     
     if (config == NULL)
@@ -315,7 +324,7 @@ void parse_config(char *path_to_config)
         // get key and value from config string
         Config_vartype type = analize_config_string(conf_raw_string, &conf_string, &string_is_incorrect);
 
-        if (string_is_incorrect || type == UNINIT)
+        if (string_is_incorrect || type == UNINIT || is_var_exists_in_config(conf_string.key, C_MAIN))
             continue;
 
         if (type == ARR_LONG)
@@ -369,20 +378,20 @@ void parse_config(char *path_to_config)
  * \param [in] context - restriction on variable use
  * \return nothing
  */
-extern void define_custom_long_variable(
+void define_custom_long_variable(
     char *name,
     const char *descr,
     const long boot_value,
     const int8_t context)
 {
-    Guc_variable *var = (Guc_variable *) malloc(sizeof(Guc_variable));
-    strcpy(var->name, name);
-    strcpy(var->descripton, descr);
-    var->elem.num = boot_value;
-    var->context = context;
-    var->vartype = LONG;
+    Guc_variable var;
+    strcpy(var.name, name);
+    strcpy(var.descripton, descr);
+    var.elem.num = boot_value;
+    var.context = context;
+    var.vartype = LONG;
 
-    push_to_map(map, name, var, sizeof(Guc_variable));
+    push_to_map(map, name, &var, sizeof(Guc_variable));
 }
 
 /**
@@ -393,34 +402,35 @@ extern void define_custom_long_variable(
  * \param [in] context - restriction on variable use
  * \return nothing
  */
-extern void define_custom_string_variable(
+void define_custom_string_variable(
     char *name,
     const char *descr,
     const char *boot_value,
     const int8_t context)
 {
-    Guc_variable *var = (Guc_variable *) malloc(sizeof(Guc_variable));
-    strcpy(var->name, name);
-    strcpy(var->descripton, descr);
-    var->elem.str = (char *) malloc(strlen(boot_value) + 1);
-    strcpy(var->elem.str, boot_value);
-    var->context = context;
-    var->vartype = STRING;
+    Guc_variable var;
+    strcpy(var.name, name);
+    strcpy(var.descripton, descr);
+    var.elem.str = (char *) malloc(strlen(boot_value) + 1);
+    strcpy(var.elem.str, boot_value);
+    var.context = context;
+    var.vartype = STRING;
 
-    push_to_map(map, name, var, sizeof(Guc_variable));
+    push_to_map(map, name, &var, sizeof(Guc_variable));
+    push_to_stack(&alloc_mem_stack, var.elem.str);
 }
 
 /**
  * \brief Get GUC variable by its name
  */
-extern Guc_data get_config_parameter(const char *name, const int8_t context)
+Guc_data get_config_parameter(const char *name, const int8_t context)
 {
     Guc_variable *var = (Guc_variable *) get_map_element(map, name);
     Guc_data err_data = {0};
     
     if (var == NULL)
     {
-        write_stderr("Config variable %s does not exists", name);
+        write_stderr("Config variable %s does not exists\n", name);
         return err_data;
     }
 
@@ -434,9 +444,31 @@ extern Guc_data get_config_parameter(const char *name, const int8_t context)
 }
 
 /**
+ * \brief Get GUC variable by its name
+ */
+Config_vartype get_config_parameter_type(const char *name, const int8_t context)
+{
+    Guc_variable *var = (Guc_variable *) get_map_element(map, name);
+    
+    if (var == NULL)
+    {
+        write_stderr("Config variable %s does not exists\n", name);
+        return UNINIT;
+    }
+
+    if (!equals(get_identify(var->context), get_identify(context)))
+    {
+        elog(ERROR, "Try to get variable with different context");
+        return UNINIT;
+    }
+
+    return var->vartype;
+}
+
+/**
  * \brief Set new value to GUC variable (only if context allows)
  */
-extern void set_config_parameter(const char *name, const Guc_data data, const int8_t context)
+void set_config_parameter(const char *name, const Guc_data data, const int8_t context)
 {
     Guc_variable *var = (Guc_variable *) get_map_element(map, name);
 
@@ -459,4 +491,19 @@ extern void set_config_parameter(const char *name, const Guc_data data, const in
 
     var->elem.num = data.num;
     strcpy(var->elem.str, data.str);
+}
+
+/**
+ * \brief Check if variable with name "name" exists in GUC table
+ * \return true if variable with name "name" exists in GUC table and it`s context equals with param context,
+ *         false if not
+ */
+bool is_var_exists_in_config(const char *name, const int8_t context)
+{
+    Guc_variable *var = (Guc_variable *) get_map_element(map, name);
+
+    if (var == NULL || !equals(get_identify(var->context), get_identify(context)))
+        return false;
+
+    return true;
 }

@@ -275,6 +275,9 @@ extern bool check_is_mem_availiable(const size_t block_size)
  */
 extern int init_OOS_allocator()
 {
+    if (!is_var_exists_in_config("memory_for_cache", C_MAIN))
+        define_custom_long_variable("memory_for_cache", "Size of memory for cache", 5242880, C_MAIN | C_STATIC); // 5Mb
+
     Guc_data max_allocation_size = get_config_parameter("memory_for_cache", C_MAIN);
     size_t max_count_of_free_blocks = (((size_t) max_allocation_size.num) / (sizeof(Block_header) + 1)) / 2 + 1;
 
