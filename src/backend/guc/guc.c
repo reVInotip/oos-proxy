@@ -219,15 +219,6 @@ void destroy_guc_table()
     destroy_map(&map);
 }
 
-/*void init_guc_by_default()
-{
-    define_custom_long_variable("log_file_size_limit", "Capacity of .log file (in bytes)", 1024, C_MAIN | C_STATIC);
-    define_custom_string_variable("log1_file_name", "Files with logs", "[log/oos_proxy_1.log, log/oos_proxy_2.log]", C_MAIN | C_STATIC);
-    define_custom_string_variable("log_dir_name", "Name of dirrectory with .log files", "log", C_MAIN | C_STATIC);
-    define_custom_long_variable("info_in_log", "Should write INFO messages to logs or not", 1, C_MAIN | C_STATIC);
-    define_custom_long_variable("memory_for_cache", "Memory allocated for cache (in bytes)", 5242880, C_MAIN | C_STATIC);
-}*/
-
 bool is_eof(FILE *config)
 {
     char c = fgetc(config);
@@ -306,7 +297,6 @@ void parse_config()
     if (config == NULL)
     {  
         write_stderr("Can`t read config file: %s. Use default GUC values\n", strerror(errno));
-        //init_guc_by_default();
         return;
     }
 

@@ -99,14 +99,21 @@ int main(int argc, char *argv[])
     //test_cache();
     elog(LOG, "Logger inited successfully");
 
-    Guc_data base_dir = get_config_parameter("base_dir", C_MAIN);
-
-    lib_stack = create_stack();
-    loader(base_dir.str);
-
-    if (get_stack_size(lib_stack) > 0)
+    if (is_var_exists_in_config("base_dir", C_MAIN))
     {
-        init_all_exetensions(lib_stack);
+        Guc_data base_dir = get_config_parameter("base_dir", C_MAIN);
+
+        lib_stack = create_stack();
+        loader(base_dir.str);
+
+        if (get_stack_size(lib_stack) > 0)
+        {
+            init_all_exetensions(lib_stack);
+        }
+        else
+        {
+            elog(WARN, "No extensions have been downloaded");
+        }
     }
     else
     {
