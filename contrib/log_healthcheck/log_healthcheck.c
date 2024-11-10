@@ -14,7 +14,7 @@ void my_bgworker()
 {
     while (1)
     {
-        elog(INFO, "log_healthcheck");
+        elog(LOG, "log_healthcheck");
         sleep(1);
     }
 }

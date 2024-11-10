@@ -17,6 +17,7 @@
 #include "memory/cache.h"
 #include "bg_worker/bg_worker.h"
 #include "boss_operations/hook.h"
+#include "master.h"
 
 Hook executor_start_hook = NULL;
 Hook executor_end_hook = NULL;
@@ -84,34 +85,15 @@ void test_cache()
     printf("%s", buffer);
 }
 
-int parse_command_line(int argc, char *argv[], char **conf_path)
-{
-    int c;
-    while ((c = getopt(argc, argv, "c:")) != -1)
-    {
-        switch (c)
-        {
-            case 'c':
-                strcpy(*conf_path, optarg);
-                break;
-            default:
-                write_stderr("Unknow option: %c\n", c);
-                return 1;
-        }
-    }
-
-    return 0;
-}
-
 int main(int argc, char *argv[])
 {
-    char *conf_path = NULL;
-    if (parse_command_line(argc, argv, &conf_path) != 0)
+    create_guc_table();
+    if (parse_command_line(argc, argv) != 0)
         return 1;
     
     hello_from_static_lib();
     hello_from_dynamic_lib();
-    parse_config(conf_path);
+    parse_config();
     init_logger();
     init_cache();
     //test_cache();
@@ -119,8 +101,8 @@ int main(int argc, char *argv[])
 
     Guc_data base_dir = get_config_parameter("base_dir", C_MAIN);
 
-    Stack_ptr lib_stack = create_stack();
-    loader(&lib_stack, base_dir.str);
+    lib_stack = create_stack();
+    loader(base_dir.str);
 
     if (get_stack_size(lib_stack) > 0)
     {
@@ -133,11 +115,7 @@ int main(int argc, char *argv[])
 
     sleep(3);
 
-    drop_all_workers();
-    drop_cache();
-    destroy_guc_table();
-    close_all_exetensions(lib_stack);
-    stop_logger();
+    shutdown(-1);
 
     return 0;
 }

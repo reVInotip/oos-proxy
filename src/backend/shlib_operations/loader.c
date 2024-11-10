@@ -10,6 +10,8 @@
 #include "logger/logger.h"
 #include "guc/guc.h"
 
+Stack_ptr lib_stack;
+
 // if system macros is __USE_MUSC undefined
 #ifndef __USE_MISC
 enum
@@ -68,17 +70,31 @@ void get_sample(char *path_to_source, char *sample)
     sample[++k] = '\0';
 }
 
+bool is_plugin_in_array(char *plug_name, Guc_data plugins)
+{
+    for (int i = 0; i < plugins.arr_str.count_elements; ++i)
+    {
+        if (!strcmp(plug_name, plugins.arr_str.data[i]))
+            return true;
+    }
+
+    return false;
+}
+
 /**
  * \brief Find and load all shared libraties
- * \param [in] stack - stack in which libraries will be added
  * \param [in] path_to_source - directory which contains shared libraries (.so files)
  * \param [in] curr_depth - current scan depth relative to the start directory (0 by default; this parameter need for recursion)
  * \param [in] depth - max scan depth relative to the start directory
  * \return nothing
  */
-extern void default_loader(Stack_ptr *stack, char *path_to_source, int curr_depth, const int depth)
+void default_loader(char *path_to_source, int curr_depth, const int depth)
 {
-    assert(path_to_source != NULL);
+    if (path_to_source == NULL)
+    {
+        elog(ERROR, "Can not load extensions because path to them is invalid!");
+        return;
+    }
     
     if (curr_depth > depth)
     {
@@ -106,7 +122,7 @@ extern void default_loader(Stack_ptr *stack, char *path_to_source, int curr_dept
     {   
         // if file is regular file and its name matches with sample for current directory
         // we load it to RAM
-        if (entry->d_type == DT_REG && !strcmp(entry->d_name, sample) && !strcmp(sample, plugins.str))
+        if (entry->d_type == DT_REG && !strcmp(entry->d_name, sample) && is_plugin_in_array(sample, plugins))
         {   
             //create full path to sample
             char *full_name = create_new_string(path_to_source, sample, '/');
@@ -117,7 +133,7 @@ extern void default_loader(Stack_ptr *stack, char *path_to_source, int curr_dept
             {
                 elog(WARN, "%s\n", dlerror());
             }
-            push_to_stack(stack, library);
+            push_to_stack(&lib_stack, library);
 
             free(full_name);
             break;
@@ -127,11 +143,20 @@ extern void default_loader(Stack_ptr *stack, char *path_to_source, int curr_dept
             // create full path to new source directory
             char *full_path = create_new_string(path_to_source, entry->d_name, '/');
 
-            default_loader(stack, full_path, curr_depth + 1, depth);
+            default_loader(full_path, curr_depth + 1, depth);
 
             free(full_path);
         }
     }
 
     closedir(source);
+}
+
+
+/**
+ * \brief Init loader (create stack for extensions)
+ */
+void init_loader()
+{
+    lib_stack = create_stack();
 }
