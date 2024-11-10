@@ -8,7 +8,7 @@ static.a:
 	$(CC) $(CCFLAGS) $(ROOT)/static_lib.c && ar -rc $(SOURCE)/libstatic.a static_lib.o && ranlib $(SOURCE)/libstatic.a
 
 dynamic.so:
-	$(CC) $(CCFLAGS) $(ROOT)/dynamic_lib.c && $(CC) -shared $(LDFLAGS) dynamic_lib.o -o $(SOURCE)/libdynamic.so
+	$(CC) $(CCFLAGS) $(ROOT)/dynamic_lib.c && $(CC) -shared $(MY_LDFLAGS) dynamic_lib.o -o $(SOURCE)/libdynamic.so
 
 include $(ROOT)/shlib_operations/Makefile
 include $(ROOT)/utils/Makefile
