@@ -101,6 +101,12 @@ void default_loader(char *path_to_source, int curr_depth, const int depth)
         return;
     }
 
+    if (!is_var_exists_in_config("plugins", C_MAIN))
+    {
+        elog(WARN, "Variable plugins does not exists in config");
+        return;
+    }
+
     Guc_data plugins = get_config_parameter("plugins", C_MAIN);
 
     char sample[256] = {'\0'};
