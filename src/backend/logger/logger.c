@@ -21,7 +21,7 @@
 #include <sys/syscall.h>
 #endif
 
-#define DEFAULT_LOG_DIR_NAME "./logs"
+#define DEFAULT_LOG_DIR_NAME "logs"
  
 #define DEFAULT_LOG_FILE_NAME "proxy.log"
 
@@ -311,7 +311,6 @@ void init_logger()
     struct dirent* entry;
 
     // Check if log directory alredy exists
-    // Add checking if log files exists
     while ((entry = readdir(source)) != NULL)
     {
         if (!strcmp(entry->d_name, log_dir_name.str) && entry->d_type == DT_DIR)
