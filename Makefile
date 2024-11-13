@@ -4,7 +4,7 @@ export SOURCE = $(MAIN_DIR)/install
 
 CC = gcc
 CCFLAGS = ${CFLAGS} ${COPT} ${CPPFLAGS} -fpic -c -Wall -Wpointer-arith -Wendif-labels -Wmissing-format-attribute -Wimplicit-fallthrough=3 -Wcast-function-type -Wshadow=compatible-local -Wformat-security -fno-strict-aliasing -fwrapv -g -O2 -I$(INCLUDE_PATH)
-MY_LDFLAGS = ${LDFLAGS} -ldl -export-dynamic
+MY_LDFLAGS = ${CFLAGS} ${COPT} ${CPPFLAGS} ${LDFLAGS} -ldl -export-dynamic
 MY_LDFLAGS_DEBUG = -fsanitize=address,leak,undefined
 ROOT = src/backend
 BIN_NAME = proxy
