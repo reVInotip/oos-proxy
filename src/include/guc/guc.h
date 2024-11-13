@@ -132,7 +132,8 @@ extern void define_custom_string_variable(
     const char *boot_value,
     const int8_t context);
 extern Guc_data get_config_parameter(const char *name, const int8_t context);
-extern void set_config_parameter(const char *name, const Guc_data data, const int8_t context);
+extern void set_string_config_parameter(const char *name, const char *data, const int8_t context);
+extern void set_long_config_parameter(const char *name, const long data, const int8_t context);
 extern Config_vartype get_config_parameter_type(const char *name, const int8_t context);
 extern bool is_var_exists_in_config(const char *name, const int8_t context);
 extern void create_guc_table();

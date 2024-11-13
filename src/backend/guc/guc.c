@@ -347,7 +347,7 @@ void parse_config()
         if (config == NULL)
         {
             conf_path.str = DEFAULT_CONF_FILE_PATH;
-            set_config_parameter("conf_path", conf_path, C_MAIN | C_DYNAMIC);
+            set_string_config_parameter("conf_path", conf_path.str, C_MAIN | C_DYNAMIC);
             write_stderr("Can`t read user config file: %s. Try to read default config file\n", strerror(errno));
             config = fopen(DEFAULT_CONF_FILE_PATH, "r");
         }
@@ -517,9 +517,9 @@ Config_vartype get_config_parameter_type(const char *name, const int8_t context)
 }
 
 /**
- * \brief Set new value to GUC variable (only if context allows)
+ * \brief Set new value to string GUC variable (only if context allows)
  */
-void set_config_parameter(const char *name, const Guc_data data, const int8_t context)
+void set_string_config_parameter(const char *name, const char *data, const int8_t context)
 {
     Guc_variable *var = (Guc_variable *) get_map_element(map, name);
 
@@ -540,8 +540,34 @@ void set_config_parameter(const char *name, const Guc_data data, const int8_t co
         return;
     }
 
-    var->elem.num = data.num;
-    strcpy(var->elem.str, data.str);
+    strcpy(var->elem.str, data);
+}
+
+/**
+ * \brief Set new value to long GUC variable (only if context allows)
+ */
+void set_long_config_parameter(const char *name, const long data, const int8_t context)
+{
+    Guc_variable *var = (Guc_variable *) get_map_element(map, name);
+
+    if (var == NULL)
+    {
+        elog(ERROR, "Config variable %s does not exists", name);
+    }
+
+    if (!is_dynamic(var->context))
+    {
+        elog(ERROR, "Try to change static config variable");
+        return;
+    }
+
+    if (!equals(get_identify(var->context), get_identify(context)))
+    {
+        elog(ERROR, "Try to change variable with different context");
+        return;
+    }
+
+    var->elem.num = data;
 }
 
 /**
