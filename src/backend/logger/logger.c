@@ -57,7 +57,7 @@ Log_file *log_file;
 bool is_log_inited = false;
 
 // Close current log file and rewrite new log file
-inline void swap_log_files()
+void swap_log_files()
 {   
     fflush(log_file->stream);
     if (fclose(log_file->stream) == EOF)
