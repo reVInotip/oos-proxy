@@ -17,6 +17,7 @@ typedef Stack_elem *Stack_ptr;
 
 extern Stack_ptr create_stack();
 extern void push_to_stack(Stack_ptr *stack, void *element);
+extern void* pop_from_stack(Stack_ptr *stack);
 extern void *stack_top(Stack_ptr stack);
 extern void destroy_stack(Stack_ptr *stack);
 extern size_t get_stack_size(Stack_ptr stack);

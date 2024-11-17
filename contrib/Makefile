@@ -1,4 +1,4 @@
-SUBDIRS = cache_test log_healthcheck plugin
+SUBDIRS = cache_test log_healthcheck plugin log_copy
 
 make_all_plugins:
 	for plugin in $(SUBDIRS); do \

@@ -17,6 +17,8 @@
 
 extern enum cache_err_num cache_errno;
 
+bool allocator_inited = false;
+
 // limit on the block size that we can allocate in RAM
 // if it is exceeded then the cache file is used
 #define MAX_RAM_BLOCK_SIZE 1024 //1 Kb;
@@ -254,7 +256,7 @@ static int get_heap_element(const size_t block_size)
  * \param [in] block_size - size of memory we want to allocate
  * \return Can we allocate this memory?
  */
-extern bool check_is_mem_availiable(const size_t block_size)
+bool check_is_mem_availiable(const size_t block_size)
 {
     Heap_elem *heap = get_heap();
     Heap_meta_data *meta_data = get_heap_meta_data();
@@ -268,21 +270,57 @@ extern bool check_is_mem_availiable(const size_t block_size)
 }
 
 /**
+ * \brief Map dimension of data in varibale memory_for_cache to value
+ * \return value if OK, else return -1
+ */
+static long unit_to_value(char *unit)
+{
+    if (strcmp(unit, "Gb") == 0)
+        return 1024 * 1024 * 1024;
+    else if (strcmp(unit, "Mb") == 0)
+        return 1024 * 1024;
+    else if (strcmp(unit, "Kb") == 0)
+        return 1024;
+    else if (strcmp(unit, "b") == 0)
+        return 1;
+    
+    return -1;
+}
+
+/**
  * \brief Initialize allocator
  * \details mmap new region of size MAX_ALLOCATION_SIZ (sets in config) +
  * META_INFO_SIZE (size of heap and it meta data)
  * \return -1 if something went wrong, 0 if all is OK
  */
-extern int init_OOS_allocator()
+int init_OOS_allocator()
 {
+    if (!is_var_exists_in_config("memory_for_cache", C_MAIN))
+        define_custom_long_variable("memory_for_cache", "Size of memory for cache", 5, C_MAIN | C_STATIC); // 5Mb
+    
+    if (!is_var_exists_in_config("unit_memory", C_MAIN))
+        define_custom_string_variable("unit_memory", "Dimension of data in memory_for_cache variable", "Mb", C_MAIN | C_STATIC);
+    
+
     Guc_data max_allocation_size = get_config_parameter("memory_for_cache", C_MAIN);
+    Guc_data unit_str = get_config_parameter("unit_memory", C_MAIN);
+
+    long unit = unit_to_value(unit_str.str);
+    if (unit < 0)
+    {
+        elog(WARN, "Incorrect value in unit_memory variable: %s. Use default (Mb)", unit_str.str);
+        unit = 1024 * 1024; // Mb
+    }
+
+    max_allocation_size.num *= unit;
+
     size_t max_count_of_free_blocks = (((size_t) max_allocation_size.num) / (sizeof(Block_header) + 1)) / 2 + 1;
 
     main_ptr = mmap(NULL, max_allocation_size.num + max_count_of_free_blocks * sizeof(Heap_elem) + sizeof(Heap_meta_data),
                                 PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (main_ptr == MAP_FAILED)
     {
-        elog(ERROR, "Error while allocating memory: %s", strerror(errno));
+        elog(ERROR, "Error while allocating memory: %s, errno: %d", strerror(errno), errno);
         return -1;
     }
     // initialize heap meta data
@@ -302,6 +340,8 @@ extern int init_OOS_allocator()
     set_free(main_header_ptr->bool_constants);
 
     main_header_ptr->block_index = insert_value_to_heap(main_header_ptr, main_header_ptr->block_size);
+
+    allocator_inited = true;
 
     return 0;
 }
@@ -359,7 +399,7 @@ void *split_block_if_it_possible(Block_header *block_header, int i, const size_t
  * then cache_errno enum variable will receive the corresponding code. This is a signal that it's
  * time to call LRU.
  */
-extern void *OOS_allocate(const size_t size)
+void *OOS_allocate(const size_t size)
 {
     print_alloc_mem();
     Heap_elem *heap = get_heap();
@@ -380,7 +420,7 @@ extern void *OOS_allocate(const size_t size)
  * \brief Free block by address
  * \param [in] addr - address of block we should free
  */
-extern void OOS_free(const void *addr)
+void OOS_free(const void *addr)
 {
     Block_header *block = (Block_header *) ((char *) addr - sizeof(Block_header));
     set_free(block->bool_constants);
@@ -424,15 +464,26 @@ extern void OOS_free(const void *addr)
 /**
  * \brief Destroy allocator and free all regions that it allocate
  */
-extern void destroy_OOS_allocator()
+void destroy_OOS_allocator()
 {
+    if (!allocator_inited)
+        return;
+        
     Guc_data max_allocation_size = get_config_parameter("memory_for_cache", C_MAIN);
+    Guc_data unit_str = get_config_parameter("unit_memory", C_MAIN);
+
+    long unit = unit_to_value(unit_str.str);
+    if (unit < 0)
+        unit = 1024 * 1024; // Mb
+
+    max_allocation_size.num *= unit;
+
     Heap_meta_data *meta_data = get_heap_meta_data();
 
     munmap(main_ptr, max_allocation_size.num + meta_data->size * sizeof(Heap_elem) + sizeof(Heap_meta_data));
 }
 
-extern void print_alloc_mem()
+void print_alloc_mem()
 {   
     Block_header *curr_block = (Block_header *) start_ptr;
     printf("Block index | Block address | Block size | Is free | Is file | Next header element | Prev header element\n");

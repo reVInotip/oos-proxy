@@ -41,12 +41,12 @@ static void* pop_from_stack(Op_stack_ptr *stack, Boss_op_name *op_name)
 
 //============operations for shared libraries=============
 
-extern void init_boss_op()
+void init_boss_op()
 {
     boss_op = create_stack();
 }
 
-extern int cache_write_op
+int cache_write_op
 (
     const char *key, 
     const char *message,
@@ -67,7 +67,7 @@ extern int cache_write_op
     return cache_write(key, message, message_length, TTL);
 }
 
-extern void print_cache_op(const char *key)
+void print_cache_op(const char *key)
 {
     if (strlen(key) + 1 > MAX_KEY_SIZE)
     {
@@ -79,7 +79,7 @@ extern void print_cache_op(const char *key)
     printf("%s\n", message);
 }
 
-extern void register_background_worker(char *callback_name, char *bg_worker_name, bool need_observer)
+void register_background_worker(char *callback_name, char *bg_worker_name, bool need_observer)
 {
     if (callback_name == NULL || bg_worker_name == NULL)
     {
@@ -101,7 +101,7 @@ extern void register_background_worker(char *callback_name, char *bg_worker_name
     push_to_stack(&boss_op, REGISTER_BG_WORKER, bg_worker_data);
 }
 
-extern void define_custom_long_variable_op(char *name, const char *descr, const long boot_value, const int8_t context)
+void define_custom_long_variable_op(char *name, const char *descr, const long boot_value, const int8_t context)
 {
     if (strlen(name) + 1 > MAX_NAME_LENGTH || strlen(descr) + 1 > MAX_DESCRIPTION_LENGTH)
     {
@@ -118,13 +118,12 @@ extern void define_custom_long_variable_op(char *name, const char *descr, const 
     define_custom_long_variable(name, descr, boot_value, context | C_USER);
 }
 
-extern void define_custom_string_variable_op(char *name, const char *descr, const char *boot_value, const int8_t context)
+void define_custom_string_variable_op(char *name, const char *descr, const char *boot_value, const int8_t context)
 {
     if 
     (
         strlen(name) + 1 > MAX_NAME_LENGTH ||
-        strlen(descr) + 1 > MAX_DESCRIPTION_LENGTH ||
-        strlen(boot_value) + 1 > MAX_CONFIG_VALUE_SIZE
+        strlen(descr) + 1 > MAX_DESCRIPTION_LENGTH
     )
     {
         elog(ERROR, "Size of arguments too large");
@@ -140,16 +139,40 @@ extern void define_custom_string_variable_op(char *name, const char *descr, cons
     define_custom_string_variable(name, descr, boot_value, context | C_USER);
 }
 
+char *get_config_string_parameter_op(const char *name, const int8_t context)
+{
+    if (strlen(name) + 1 > MAX_NAME_LENGTH)
+    {
+        elog(ERROR, "Size of arguments too large");
+        return NULL;
+    }
+
+    Config_vartype vartype = get_config_parameter_type(name, context);
+    if (vartype == UNINIT)
+    {
+        elog(ERROR, "Varibale with name %s not exists in this context\n", name);
+        return NULL;
+    } else if (vartype != STRING)
+    {
+        elog(ERROR, "Varibale with name %s isn`t string\n", name);
+        return NULL;
+    }
+
+    Guc_data var = get_config_parameter(name, context);
+
+    return var.str;
+}
+
 //============operations for boss=============
 
-extern inline void clear_bg_worker_info(BGWorker_data *bg_worker_data)
+inline void clear_bg_worker_info(BGWorker_data *bg_worker_data)
 {
     free(bg_worker_data->bg_worker_name);
     free(bg_worker_data->callback_name);
     free(bg_worker_data);
 }
 
-extern inline void *get_stack_top(Boss_op_name *op_name)
+inline void *get_stack_top(Boss_op_name *op_name)
 {
     if (boss_op == NULL)
     {

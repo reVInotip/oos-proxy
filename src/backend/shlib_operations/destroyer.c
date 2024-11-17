@@ -10,10 +10,9 @@
 
 /**
     \brief Close all extensions and unload it from memory
-    \param [in] lib_stack - stack which contains shared libraries handles
     \return nothing
 */
-extern void close_all_exetensions(Stack_ptr lib_stack)
+void close_all_exetensions()
 {   
     if (lib_stack == NULL)
     {
