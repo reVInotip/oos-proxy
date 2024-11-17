@@ -1,6 +1,6 @@
 $(MAIN_OBJ): $(OBJ) $(LIBS)
 	$(CC) $(MY_CCFLAGS) $(ROOT)/main.c
-
+  
 master.o:
 	$(CC) $(MY_CCFLAGS) $(ROOT)/master.c
 

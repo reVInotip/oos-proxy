@@ -53,8 +53,8 @@ dkms.conf
 .vscode
 oos_proxy
 log/
-logs/
 log_backup/
+logs/
 docs/
 ideas/
 
