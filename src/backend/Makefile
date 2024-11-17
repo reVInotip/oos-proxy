@@ -1,14 +1,14 @@
 $(MAIN_OBJ): $(OBJ) $(LIBS)
-	$(CC) $(CCFLAGS) $(ROOT)/main.c
+	$(CC) $(MY_CCFLAGS) $(ROOT)/main.c
 
 master.o:
-	$(CC) $(CCFLAGS) $(ROOT)/master.c
+	$(CC) $(MY_CCFLAGS) $(ROOT)/master.c
 
 static.a:
-	$(CC) $(CCFLAGS) $(ROOT)/static_lib.c && ar -rc $(SOURCE)/libstatic.a static_lib.o && ranlib $(SOURCE)/libstatic.a
+	$(CC) $(MY_CCFLAGS) $(ROOT)/static_lib.c && ar -rc $(SOURCE)/libstatic.a static_lib.o && ranlib $(SOURCE)/libstatic.a
 
 dynamic.so:
-	$(CC) $(CCFLAGS) $(ROOT)/dynamic_lib.c && $(CC) -shared $(MY_LDFLAGS) dynamic_lib.o -o $(SOURCE)/libdynamic.so
+	$(CC) $(MY_CCFLAGS) $(ROOT)/dynamic_lib.c && $(CC) -shared $(MY_LDFLAGS) dynamic_lib.o -o $(SOURCE)/libdynamic.so
 
 include $(ROOT)/shlib_operations/Makefile
 include $(ROOT)/utils/Makefile

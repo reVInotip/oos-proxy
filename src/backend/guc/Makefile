@@ -1,2 +1,2 @@
 guc.o:
-	$(CC) $(CCFLAGS) $(ROOT)/guc/guc.c
+	$(CC) $(MY_CCFLAGS) $(ROOT)/guc/guc.c
