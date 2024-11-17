@@ -12,11 +12,10 @@
 
 /**
     \brief Initialize all extensions (call init function with some args)
-    \param [in] lib_stack - stack which contains shared libraries handles
     \param [in] args - arguments for extension init function
     \return nothing
 */
-void init_all_exetensions(Stack_ptr lib_stack)
+void init_all_exetensions()
 {   
     assert(lib_stack != NULL);
 
@@ -28,6 +27,7 @@ void init_all_exetensions(Stack_ptr lib_stack)
     op_func->register_background_worker = register_background_worker;
     op_func->define_custom_long_variable_op = define_custom_long_variable_op;
     op_func->define_custom_string_variable_op = define_custom_string_variable_op;
+    op_func->get_config_string_parameter_op = get_config_string_parameter_op;
 
     for (size_t i = 0; i < get_stack_size(lib_stack); i++)
     {

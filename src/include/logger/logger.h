@@ -13,6 +13,10 @@
 
 #pragma once
 
+#define USE_VDSO_TIME
+
+//#define SIMPLE_LOGGER
+
 /**
  * \brief Level of log mess#pragma onceages
  * \details
@@ -22,17 +26,28 @@
  * LOG - informing about an event from the server side;
  * WARN - warnings about problems in the program.
  *      They can influence its work;
- * ERROR - error message. Reports critical problems in the program.
- * TO_DO Add CRITICAL level for emergency termination of the program
+ * ERROR - error message. Reports critical problems in the program;
+ * FATAL - after that error programm can not work and will be terminated with exit code 14.
  */
 typedef enum e_level {
-    INFO = 1,
-    DEBUG = 2,
-    LOG = 3,
-    WARN = 4,
-    ERROR = 5
+    DEBUG,
+    LOG,
+    WARN,
+    ERROR,
+    FATAL
 } E_LEVEL;
 
+#ifdef SIMPLE_LOGGER
+#define elog(elevel, format, ...) \
+    do \
+    { \
+        write_log(elevel, format, ## __VA_ARGS__); \
+    } while(0)
+
+extern void write_log(E_LEVEL level,
+                    const char *format,
+                    ...) __attribute__((format(printf, 2, 3)));
+#else
 #define elog(elevel, format, ...) \
     do \
     { \
@@ -44,6 +59,8 @@ extern void write_log(E_LEVEL level,
                     int line_number,
                     const char *format,
                     ...) __attribute__((format(printf, 4, 5)));
+#endif
+
 extern void write_stderr(const char *format, ...) __attribute__((format(printf, 1, 2)));                        
 extern void init_logger();
 extern void stop_logger();

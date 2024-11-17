@@ -1,5 +1,8 @@
 $(MAIN_OBJ): $(OBJ) $(LIBS)
 	$(CC) $(MY_CCFLAGS) $(ROOT)/main.c
+  
+master.o:
+	$(CC) $(MY_CCFLAGS) $(ROOT)/master.c
 
 static.a:
 	$(CC) $(MY_CCFLAGS) $(ROOT)/static_lib.c && ar -rc $(SOURCE)/libstatic.a static_lib.o && ranlib $(SOURCE)/libstatic.a

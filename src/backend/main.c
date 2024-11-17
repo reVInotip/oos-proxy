@@ -17,6 +17,7 @@
 #include "memory/cache.h"
 #include "bg_worker/bg_worker.h"
 #include "boss_operations/hook.h"
+#include "master.h"
 
 Hook executor_start_hook = NULL;
 Hook executor_end_hook = NULL;
@@ -86,23 +87,33 @@ void test_cache()
 
 int main(int argc, char *argv[])
 {
+    create_guc_table();
+    if (parse_command_line(argc, argv) != 0)
+        return 1;
+    
     hello_from_static_lib();
     hello_from_dynamic_lib();
-    char *conf_path = get_config_path(argc, argv);
-    parse_config(conf_path);
+    parse_config();
     init_logger();
     init_cache();
     //test_cache();
     elog(LOG, "Logger inited successfully");
 
-    Guc_data base_dir = get_config_parameter("base_dir", C_MAIN);
-
-    Stack_ptr lib_stack = create_stack();
-    loader(&lib_stack, base_dir.str);
-
-    if (get_stack_size(lib_stack) > 0)
+    if (is_var_exists_in_config("base_dir", C_MAIN))
     {
-        init_all_exetensions(lib_stack);
+        Guc_data base_dir = get_config_parameter("base_dir", C_MAIN);
+
+        lib_stack = create_stack();
+        loader(base_dir.str);
+
+        if (get_stack_size(lib_stack) > 0)
+        {
+            init_all_exetensions(lib_stack);
+        }
+        else
+        {
+            elog(WARN, "No extensions have been downloaded");
+        }
     }
     else
     {
@@ -111,11 +122,7 @@ int main(int argc, char *argv[])
 
     sleep(3);
 
-    drop_all_workers();
-    drop_cache();
-    destroy_guc_table();
-    close_all_exetensions(lib_stack);
-    stop_logger();
+    shutdown(-1);
 
     return 0;
 }

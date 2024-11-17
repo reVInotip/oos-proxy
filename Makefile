@@ -8,10 +8,10 @@ MY_LDFLAGS = ${CCFLAGS} ${CFLAGS} ${COPT} ${CPPFLAGS} ${LDFLAGS} -ldl -export-dy
 MY_LDFLAGS_DEBUG = -fsanitize=address,leak,undefined
 ROOT = src/backend
 BIN_NAME = proxy
-OBJ = bg_worker.o boss_operations.o guc.o
+OBJ = bg_worker.o boss_operations.o guc.o master.o
 MAIN_OBJ = main.o
 LIBS_LINK = -lutils -loperations -lmemory -llogger -lstatic -ldynamic
-LIBS = utils.a operations.a memory.a logger.so static.a dynamic.so
+LIBS = utils.a operations.a memory.a static.a dynamic.so logger.so
 
 all:
 	make clean_source_dir
@@ -48,5 +48,5 @@ clean_source_dir:
 clean_obj:
 	rm -rf *.o
 
-clean: clean_source_dir clean_obj
+clean: clean_obj
 	echo "Full clean"
