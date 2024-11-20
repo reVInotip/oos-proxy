@@ -6,10 +6,10 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <limits.h>
-#include "../../include/logger/logger.h"
-#include "../../include/guc/guc.h"
-#include "../../include/memory/allocator.h"
-#include "../../include/memory/cache_errno.h"
+#include "logger/logger.h"
+#include "guc/guc.h"
+#include "memory/allocator.h"
+#include "memory/cache_errno.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -401,7 +401,6 @@ void *split_block_if_it_possible(Block_header *block_header, int i, const size_t
  */
 void *OOS_allocate(const size_t size)
 {
-    print_alloc_mem();
     Heap_elem *heap = get_heap();
     if (!check_is_mem_availiable(size))
     {

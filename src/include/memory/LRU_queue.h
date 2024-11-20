@@ -2,6 +2,10 @@
  * LRU_queue.h
  * This file contians strcuts and operations necessary for the LRU algorithm to work.
  * Minimal heap (priority queue) is used to retrieve the most recently used data from the cache.
+ * 
+ * 
+ * TODO (!!!) Replace this queue to doubly linked list. It will be fater (O(1) ws O(log(n)) for insert in worst case)
+ *  You can also not save last_using_time field in list and not make syscall for get it.
  */
 #include <time.h>
 #include <stdlib.h>

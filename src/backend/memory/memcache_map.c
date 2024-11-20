@@ -3,10 +3,10 @@
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
-#include "../../include/memory/memcache_map.h"
-#include "../../include/logger/logger.h"
-#include "../../include/guc/guc.h"
-#include "../../include/memory/cache_errno.h"
+#include "memory/memcache_map.h"
+#include "logger/logger.h"
+#include "guc/guc.h"
+#include "memory/cache_errno.h"
 
 extern enum cache_err_num cache_errno;
 
@@ -15,19 +15,20 @@ extern enum cache_err_num cache_errno;
 
 // ======== auxiliary structure methods ===========
 
-Collisions_list_ptr create_collisions_list()
+static Collisions_list_ptr create_collisions_list()
 {
     return NULL;
 }
 
-Collisions_list_elem *insert_to_collisions_list(Collisions_list_ptr *clist, void *value, const char *key, time_t TTL, time_t creation_time)
+static Collisions_list_elem *insert_to_collisions_list(Collisions_list_ptr *clist, const char *key, const Block_t *data)
 {   
     Collisions_list_elem *new = (Collisions_list_elem *) malloc(sizeof(Collisions_list_elem));
     assert(new != NULL);
 
-    new->block_ptr = value;
-    new->creation_time = creation_time;
-    new->TTL = TTL;
+    new->block.block_ptr = data->block_ptr;
+    new->block.block_size = data->block_size;
+    new->block.creation_time = data->creation_time;
+    new->block.TTL = data->TTL;
     new->next = NULL;
     strcpy(new->key_str, key);
 
@@ -67,7 +68,7 @@ Collisions_list_elem *get_collisions_list_elem(Collisions_list_ptr clist, const 
     return NULL;
 }
 
-extern void delete_from_collisions_list(Collisions_list_ptr *clist, Collisions_list_elem *del_elem)
+void delete_from_collisions_list(Collisions_list_ptr *clist, Collisions_list_elem *del_elem)
 {
     if (del_elem->prev != NULL)
     {
@@ -120,7 +121,7 @@ int hash_function(const char *string)
     return hash % COUNT_ELEMENTS_IN_ARRAY;
 }
 
-extern Hash_memmap_ptr create_memmap()
+Hash_memmap_ptr create_memmap()
 {
     Hash_memmap_ptr map = (Hash_memmap_ptr) calloc(COUNT_ELEMENTS_IN_ARRAY, sizeof(Hash_memmap_elem));
     assert(map != NULL);
@@ -139,7 +140,7 @@ extern Hash_memmap_ptr create_memmap()
  * To check whether the resulting value is correct, use cache_errno variable.
  * If value is incorrect it was alredy deleted from hash_map.
  */
-extern void *get_memmap_element(Hash_memmap_ptr map, const char *key)
+Block_t *get_memmap_element(Hash_memmap_ptr map, const char *key)
 {   
     int key_index = hash_function(key);
     Collisions_list_elem *elem = get_collisions_list_elem(map[key_index].requests, key);
@@ -148,11 +149,11 @@ extern void *get_memmap_element(Hash_memmap_ptr map, const char *key)
         return NULL;
     }
 
-    void *block_ptr = elem->block_ptr;
+    Block_t *block_ptr = &(elem->block);
 
     time_t curr_time = time(NULL);
     // check whether the package has expired or its lifetime
-    if (curr_time - elem->creation_time > elem->TTL)
+    if (curr_time - block_ptr->creation_time > block_ptr->TTL)
     {
         // and delete it if yes
         delete_from_collisions_list(&map[key_index].requests, elem);
@@ -171,26 +172,26 @@ extern void *get_memmap_element(Hash_memmap_ptr map, const char *key)
  * \note The function is used in the LRU algorithm to quickly remove
  * the most recently used elements without a long search for them in the key.
  */
-extern Collisions_list_ptr *get_memmap_clist(Hash_memmap_ptr map, const char *key)
+Collisions_list_ptr *get_memmap_clist(Hash_memmap_ptr map, const char *key)
 {   
     int key_index = hash_function(key);
     return &map[key_index].requests;
 }
 
-extern Collisions_list_elem *push_to_memmap
-(
-    Hash_memmap_ptr map,
-    const char *key,
-    void *value,
-    time_t TTL,
-    time_t creation_time
-)
+/**
+ * \brief Push element discribed Block_t structure to map
+ * \note Fields from data parameter will be copied, so it can be allocated on stack
+ */
+Collisions_list_elem *push_to_memmap(Hash_memmap_ptr map, const char *key, const Block_t *data)
 {
+    assert(key != NULL);
+    assert(data != NULL);
+
     int key_index = hash_function(key);
-    return insert_to_collisions_list(&map[key_index].requests, value, key, TTL, creation_time);
+    return insert_to_collisions_list(&map[key_index].requests, key, data);
 }
 
-extern void destroy_memmap(Hash_memmap_ptr *map)
+void destroy_memmap(Hash_memmap_ptr *map)
 {
     assert(map != NULL);
 

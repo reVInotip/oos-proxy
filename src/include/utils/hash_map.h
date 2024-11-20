@@ -4,6 +4,9 @@
  * Implemented based on hash tables. A polynomial hash was used as a hash function.
  * To protect against collisions and add multiple values ​​with the same key, a priority
  * queue of a not fixed size is used (this structure was chosen to support working with the cache).
+ * 
+ * NOTES In the end i decide to use another hash map to cache so priority queue can be replaced on something more simple
+ * like dobly linked list
  */
 #include <stdlib.h>
 #include "stack.h"

@@ -75,8 +75,8 @@ void print_cache_op(const char *key)
         return;
     }
     
-    char *message = (char *) cache_read(key, NULL, 0);
-    printf("%s\n", message);
+    Cache_data_t message = cache_read(key, NULL, 0);
+    printf("%s\n", (char *) message.ptr);
 }
 
 void register_background_worker(char *callback_name, char *bg_worker_name, bool need_observer)

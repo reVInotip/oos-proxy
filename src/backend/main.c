@@ -96,7 +96,8 @@ int main(int argc, char *argv[])
     parse_config();
     init_logger();
     init_cache();
-    //test_cache();
+
+    test_cache();
     elog(LOG, "Logger inited successfully");
 
     if (is_var_exists_in_config("base_dir", C_MAIN))

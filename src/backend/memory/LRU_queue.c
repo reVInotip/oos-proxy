@@ -1,7 +1,9 @@
 #include <time.h>
 #include <assert.h>
-#include "../../include/memory/LRU_queue.h"
-#include "../../include/memory/memcache_map.h"
+#include "memory/LRU_queue.h"
+#include "memory/memcache_map.h"
+
+#include <stdio.h>
 
 #define PQUEUE_START_SIZE 1024
 
@@ -55,7 +57,7 @@ static void shift_down(Pqueue_ptr pqueue, int i)
     }
 }
 
-extern Pqueue_ptr create_pquque()
+Pqueue_ptr create_pquque()
 {   
     Pqueue_ptr pqueue = (Pqueue_ptr) malloc(sizeof(Pqueue));
     assert(pqueue != NULL);
@@ -63,13 +65,15 @@ extern Pqueue_ptr create_pquque()
     pqueue->data = (Priority_queue_ptr) malloc(sizeof(Priority_queue_elem) * PQUEUE_START_SIZE);
     assert(pqueue->data != NULL);
 
+    printf("-2 %p\n", pqueue->data);
+
     pqueue->curr_size = 0;
     pqueue->size = PQUEUE_START_SIZE;
 
     return pqueue;
 }
 
-extern void reallocate_pqueue(Pqueue_ptr pqueue)
+void reallocate_pqueue(Pqueue_ptr pqueue)
 {   
     pqueue->data = (Priority_queue_ptr) realloc(pqueue->data,
                                                 pqueue->size * sizeof(Priority_queue_elem) * 2);
@@ -78,7 +82,7 @@ extern void reallocate_pqueue(Pqueue_ptr pqueue)
     pqueue->size *= 2;
 }
 
-extern void insert_value_to_pqueue(Pqueue_ptr pqueue, Collisions_list_elem *map_elem_ptr)
+void insert_value_to_pqueue(Pqueue_ptr pqueue, Collisions_list_elem *map_elem_ptr)
 {
     ++pqueue->curr_size;
     if (pqueue->curr_size > pqueue->size)
@@ -96,7 +100,7 @@ extern void insert_value_to_pqueue(Pqueue_ptr pqueue, Collisions_list_elem *map_
  * \brief Extract minimal by last_using_time element
  * \return Pointer to this element in hash_map
  */
-extern Collisions_list_elem *extract_min(Pqueue_ptr pqueue)
+Collisions_list_elem *extract_min(Pqueue_ptr pqueue)
 {
     if (pqueue->curr_size == 0)
     {
@@ -114,7 +118,7 @@ extern Collisions_list_elem *extract_min(Pqueue_ptr pqueue)
 /**
  * \brief Delete priority queue element by block pointer
  */
-extern void delete_from_pqueue(Pqueue_ptr pqueue, void *block_ptr)
+void delete_from_pqueue(Pqueue_ptr pqueue, void *block_ptr)
 {
     if (pqueue->curr_size == 0)
     {
@@ -136,11 +140,11 @@ extern void delete_from_pqueue(Pqueue_ptr pqueue, void *block_ptr)
  * \brief Get priority queue element by block pointer
  * \return Index of element or NULL if element was not found
  */
-extern int get_pqueue_element(Pqueue_ptr pqueue, void *block_ptr)
+int get_pqueue_element(Pqueue_ptr pqueue, void *block_ptr)
 {
     for (size_t i = 0; i < pqueue->curr_size; i++)
     {
-        if (pqueue->data[i].map_elem_ptr->block_ptr == block_ptr)
+        if (pqueue->data[i].map_elem_ptr->block.block_ptr == block_ptr)
         {
             return (int) i;
         }
@@ -152,15 +156,17 @@ extern int get_pqueue_element(Pqueue_ptr pqueue, void *block_ptr)
 /**
  * \brief Update last element using time
  */
-extern void update_element_time(Pqueue_ptr pqueue, void *block_ptr)
+void update_element_time(Pqueue_ptr pqueue, void *block_ptr)
 {
     int index = get_pqueue_element(pqueue, block_ptr);
     pqueue->data[index].last_using_time = time(NULL);
     shift_down(pqueue, index);
 }
 
-extern void destroy_pqueue(Pqueue_ptr pqueue)
+void destroy_pqueue(Pqueue_ptr pqueue)
 {   
+    printf("4 %p\n", pqueue->data);
     free(pqueue->data);
+    printf("here\n");
     free(pqueue);
 }
