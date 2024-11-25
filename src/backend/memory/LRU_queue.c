@@ -65,8 +65,6 @@ Pqueue_ptr create_pquque()
     pqueue->data = (Priority_queue_ptr) malloc(sizeof(Priority_queue_elem) * PQUEUE_START_SIZE);
     assert(pqueue->data != NULL);
 
-    printf("-2 %p\n", pqueue->data);
-
     pqueue->curr_size = 0;
     pqueue->size = PQUEUE_START_SIZE;
 
@@ -155,6 +153,8 @@ int get_pqueue_element(Pqueue_ptr pqueue, void *block_ptr)
 
 /**
  * \brief Update last element using time
+ * \param [in] pqueue - pointer to priority queue
+ * \param [in] block_ptr - pointer to block which contains in Block_t struct
  */
 void update_element_time(Pqueue_ptr pqueue, void *block_ptr)
 {
@@ -165,8 +165,6 @@ void update_element_time(Pqueue_ptr pqueue, void *block_ptr)
 
 void destroy_pqueue(Pqueue_ptr pqueue)
 {   
-    printf("4 %p\n", pqueue->data);
     free(pqueue->data);
-    printf("here\n");
     free(pqueue);
 }

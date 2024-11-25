@@ -31,7 +31,6 @@ void drop_cache()
 {
     destroy_OOS_allocator();
     destroy_memmap(&memcache);
-    printf("3 %p\n", LRU_queue->data);
     destroy_pqueue(LRU_queue);
 }
 
@@ -116,9 +115,7 @@ int cache_write(const char *key, const char *message, const size_t len, unsigned
 
     Collisions_list_elem *elem = push_to_memmap(memcache, key, &data);
     
-    printf("-1 %p\n", LRU_queue->data);
     insert_value_to_pqueue(LRU_queue, elem);
-    printf("0 %p\n", LRU_queue->data);
 
     return 0;
 }
@@ -153,9 +150,7 @@ Cache_data_t cache_read(const char *key, char *buffer, const size_t buffer_size)
         goto EXIT;
     }
 
-    printf("1 %p\n", LRU_queue->data);
-    update_element_time(LRU_queue, addr);
-    printf("2 %p\n", LRU_queue->data);
+    update_element_time(LRU_queue, addr->block_ptr);
 
     if (buffer == NULL)
     {
