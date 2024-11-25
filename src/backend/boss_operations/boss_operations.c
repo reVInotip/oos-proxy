@@ -76,7 +76,7 @@ void print_cache_op(const char *key)
     }
     
     Cache_data_t message = cache_read(key, NULL, 0);
-    printf("%s\n", (char *) message.ptr);
+    elog(LOG, "%s\n", (char *) message.ptr);
 }
 
 void register_background_worker(char *callback_name, char *bg_worker_name, bool need_observer)

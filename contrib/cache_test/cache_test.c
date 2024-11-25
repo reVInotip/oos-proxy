@@ -1,3 +1,5 @@
+// TO_DO rewrite initializtion to hooks!
+
 #include "boss_operations/boss_operations.h"
 #include <stdio.h>
 #include <unistd.h>
