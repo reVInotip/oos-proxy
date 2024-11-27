@@ -2,6 +2,7 @@
  * boss_operations.h
  * This file contains declarations of functions that can be called in a shared library init method
  * and functions by which the main process can perform the operations provided by those functions.
+ * make it DEPRECATED
  */
 #include <stdlib.h>
 #include <stdbool.h>

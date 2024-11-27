@@ -11,12 +11,12 @@
 #include <dlfcn.h>
 #include <string.h>
 #include <errno.h>
-#include "../../include/boss_operations/boss_operations.h"
-#include "../../include/shlib_operations/operations.h"
-#include "../../include/logger/logger.h"
-#include "../../include/bg_worker/bg_worker.h"
+#include "boss_operations/boss_operations.h"
+#include "shlib_operations/operations.h"
+#include "logger/logger.h"
+#include "bg_worker/bg_worker.h"
 
-extern void exec_requests(void *extension_handle)
+void exec_requests(void *extension_handle)
 {
     void *operation_data;
     Boss_op_name op_name;

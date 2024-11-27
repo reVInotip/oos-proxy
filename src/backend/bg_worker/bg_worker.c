@@ -200,7 +200,7 @@ int tracer(void *tracee)
  * \param [in] bg_worker_data - data required to create a new process (more details in
  * the description of the structure itself)
  */
-extern void create_bg_worker(void *extension_handle, const BGWorker_data *bg_worker_data)
+void create_bg_worker(void *extension_handle, const BGWorker_data *bg_worker_data)
 {
     void *stack = mmap(NULL, STACK_SIZE_FOR_BGWORKER, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_STACK | MAP_ANONYMOUS, -1, 0);
     if (stack == MAP_FAILED)
@@ -247,7 +247,7 @@ extern void create_bg_worker(void *extension_handle, const BGWorker_data *bg_wor
  * \param [in] bg_worker_data - data required to create a new process (more details in
  * the description of the structure itself)
  */
-extern void create_bg_worker_tracer(void *extension_handle, const BGWorker_data *bg_worker_data)
+void create_bg_worker_tracer(void *extension_handle, const BGWorker_data *bg_worker_data)
 {
     BGWorker_tracee bg_worker_tracee_data;
     bg_worker_tracee_data.function = dlsym(extension_handle, bg_worker_data->callback_name);
@@ -314,17 +314,36 @@ extern void create_bg_worker_tracer(void *extension_handle, const BGWorker_data 
  * \brief Destroy all background workers
  * \details "Destroy" means kill process, unmap stack and delete it from list of backgeound workers.
  */
-extern void drop_all_workers()
+void drop_all_workers()
 {
     Workers_list_elem *curr_elem;
     while (bg_workers_list != NULL)
     {
+        int status = 0;
         if (bg_workers_list->data->pid != -1)
         {
-            if (kill(bg_workers_list->data->pid, SIGKILL))
+            if (kill(bg_workers_list->data->pid, SIGINT) < 0)
             {
                 elog(ERROR, "Can not kill background worker: %s with pid: %d - %s",
                     bg_workers_list->data->name, bg_workers_list->data->pid, strerror(errno));
+            } else {
+                if (waitpid(bg_workers_list->data->pid, &status, 0) < 0 && errno != ECHILD) { // see man 2 wait NOTES
+                    elog(ERROR, "Can not get exit status of background worker: %s with pid: %d - %s",
+                        bg_workers_list->data->name, bg_workers_list->data->pid, strerror(errno));
+                } else {
+                    // check how child proccess terminated
+                    if (WIFEXITED(status)) {
+                        int exit_code = WEXITSTATUS(status);
+                        printf("exit: %d", exit_code);
+                        if (exit_code != 0)
+                            elog(WARN, "Proccess finished with non zero code: %d", exit_code);
+                    } else if (WIFSIGNALED(status)) {
+                        int sig_num = WTERMSIG(status);
+                        elog(WARN, "Proccess terminated by signal: %d", sig_num);
+                    } else {
+                        elog(ERROR, "Undefined behaviour after killing proccess!");
+                    }
+                }
             }
         }
 
