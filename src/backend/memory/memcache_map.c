@@ -10,9 +10,6 @@
 
 extern enum cache_err_num cache_errno;
 
-// Max count hash keys in hash table
-#define COUNT_ELEMENTS_IN_ARRAY 256 // 1024
-
 // ======== auxiliary structure methods ===========
 
 static Collisions_list_ptr create_collisions_list()

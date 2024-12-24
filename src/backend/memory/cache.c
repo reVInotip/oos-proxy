@@ -35,12 +35,12 @@ void drop_cache()
 }
 
 /**
- * \brief Clearing cache when full using LRU alogrithm
+ * \brief Cleaning cache when full using LRU alogrithm
  * \details The function will clear the cache until a new element can be inserted into it.
  * \param [in] clearing_size - number of bytes to clear.
  * \warning If the algorithm does not work, the function terminates the program urgently.
  */
-void clear_cache(const size_t clearing_size)
+static void cache_cleaner_by_LRU(const size_t clearing_size)
 {
     while (true)
     {
@@ -76,13 +76,13 @@ void clear_cache(const size_t clearing_size)
  * \return -1 if something went wrong, 0 if all is OK
  */
 int cache_write(const char *key, const char *message, const size_t len, unsigned TTL)
-{   
+{
     void *addr = OOS_allocate(len);
     if (addr == NULL)
     {
         if (cache_errno == NO_FREE_SPACE)
         {
-            clear_cache(len);
+            cache_cleaner_by_LRU(len);
 
             // Here we can be sure that there will be enough space in the cache
             // due to the specifics of the function cache_clear()
@@ -99,22 +99,21 @@ int cache_write(const char *key, const char *message, const size_t len, unsigned
     memcpy(addr, message, len);
 
     time_t t = time(NULL);
-    if (t == (time_t) -1)
+    if (t == (time_t)-1)
     {
         elog(ERROR, "time error: %s", strerror(errno));
         return -1;
     }
 
     Block_t data =
-    {
-        .block_ptr = addr,
-        .block_size = len,
-        .creation_time = t,
-        .TTL = TTL
-    };
+        {
+            .block_ptr = addr,
+            .block_size = len,
+            .creation_time = t,
+            .TTL = TTL};
 
     Collisions_list_elem *elem = push_to_memmap(memcache, key, &data);
-    
+
     insert_value_to_pqueue(LRU_queue, elem);
 
     return 0;
@@ -134,7 +133,7 @@ Cache_data_t cache_read(const char *key, char *buffer, const size_t buffer_size)
 {
     // check if curr value invalid
     Block_t *addr = get_memmap_element(memcache, key);
-    Cache_data_t result = {(void *) 0, 0};
+    Cache_data_t result = {(void *)0, 0};
     if (addr == NULL)
     {
         elog(ERROR, "Element with key: %s not found in cache", key);

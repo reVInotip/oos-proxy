@@ -13,6 +13,9 @@
 // The maximum number of bytes that can contain a key
 #define MAX_KEY_SIZE 100
 
+// Max count hash keys in hash table
+#define COUNT_ELEMENTS_IN_ARRAY 256 // 1024
+
 typedef struct block_t {
     void      *block_ptr; // pointer to cache block with data
     size_t    block_size;
