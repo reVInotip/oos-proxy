@@ -1,8 +1,8 @@
-#include "../../include/memory/memcache_map.h"
-#include "../../include/boss_operations/boss_operations.h"
-#include "../../include/memory/cache.h"
-#include "../../include/logger/logger.h"
-#include "../../include/guc/guc.h"
+#include "memory/memcache_map.h"
+#include "boss_operations/boss_operations.h"
+#include "memory/cache.h"
+#include "logger/logger.h"
+#include "guc/guc.h"
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
@@ -56,7 +56,6 @@ int cache_write_op
 {
     if (strlen(key) + 1 > MAX_KEY_SIZE)
     {
-        printf("Here\n");
         elog(ERROR, "Size of arguments too large");
         return -1;
     }

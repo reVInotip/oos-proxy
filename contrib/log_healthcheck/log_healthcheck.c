@@ -1,3 +1,5 @@
+#define _POSIX_C_SOURCE 199310
+
 #include "logger/logger.h"
 #include "boss_operations/boss_operations.h"
 #include <stdio.h>
@@ -5,8 +7,9 @@
 #include <stdbool.h>
 #include <signal.h>
 
-void sigint_handler() {
-    exit(5);
+void sigint_handler(int num)
+{
+    _exit(5);
 }
 
 void init(void *arg, ...)
@@ -17,8 +20,9 @@ void init(void *arg, ...)
 
 void my_bgworker()
 {
-    signal(SIGINT, sigint_handler);
-    
+    struct sigaction sa = { .__sigaction_handler = { sigint_handler } };
+    sigaction(SIGTERM, &sa, NULL);
+
     while (1)
     {
         elog(LOG, "log_healthcheck");

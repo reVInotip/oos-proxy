@@ -18,12 +18,12 @@
 #include <sys/wait.h>
 #include <string.h>
 #include <sys/user.h>
-#include "../../include/boss_operations/boss_operations.h"
-#include "../../include/logger/logger.h"
-#include "../../include/utils/stack.h"
-#include "../../include/bg_worker/bg_worker.h"
+#include "boss_operations/boss_operations.h"
+#include "logger/logger.h"
+#include "utils/stack.h"
+#include "bg_worker/bg_worker.h"
 
-#define STACK_SIZE_FOR_BGWORKER 4096
+#define STACK_SIZE_FOR_BGWORKER 4096 * 2
 
 typedef struct bgworker_tracee
 {
@@ -113,7 +113,7 @@ int tracer(void *tracee)
     BGWorker_tracee t;
     t.function = ((BGWorker_tracee *) tracee)->function;
     t.stack = ((BGWorker_tracee *) tracee)->stack;
-    int pid = clone(t.function, (char *)t.stack + STACK_SIZE_FOR_BGWORKER, CLONE_FILES | CLONE_IO, NULL);
+    int pid = clone(t.function, (char *)t.stack + STACK_SIZE_FOR_BGWORKER, CLONE_FILES | CLONE_IO | SIGCHLD, NULL);
     if (pid < 0)
     {
         elog(WARN, "Can not create new process for background worker: %s", strerror(errno));
@@ -219,7 +219,7 @@ void create_bg_worker(void *extension_handle, const BGWorker_data *bg_worker_dat
 
     // TO_DO add background worker struct to shared memory to record its state
     // CLONE_FILES | CLONE_IO flags needed for logger
-    int pid = clone(function, (char *)stack + STACK_SIZE_FOR_BGWORKER, CLONE_FILES | CLONE_IO, NULL);
+    int pid = clone(function, (char *)stack + STACK_SIZE_FOR_BGWORKER, CLONE_FILES | CLONE_IO | SIGCHLD, NULL);
     if (pid < 0)
     {
         elog(WARN, "Can not create new process for background worker: %s", strerror(errno));
@@ -274,7 +274,7 @@ void create_bg_worker_tracer(void *extension_handle, const BGWorker_data *bg_wor
 
     bg_worker_tracee_data.stack = tracee_stack;
     int tracer_pid = clone(tracer, (char *)observer_stack + STACK_SIZE_FOR_BGWORKER,
-                            CLONE_FILES | CLONE_IO | CLONE_VM, &bg_worker_tracee_data);
+                            CLONE_FILES | CLONE_IO | CLONE_VM | SIGCHLD, &bg_worker_tracee_data);
     if (tracer_pid < 0)
     {
         elog(WARN, "Can not create tracer process for background worker: %s", strerror(errno));
@@ -322,7 +322,7 @@ void drop_all_workers()
         int status = 0;
         if (bg_workers_list->data->pid != -1)
         {
-            if (kill(bg_workers_list->data->pid, SIGINT) < 0)
+            if (kill(bg_workers_list->data->pid, SIGTERM) < 0)
             {
                 elog(ERROR, "Can not kill background worker: %s with pid: %d - %s",
                     bg_workers_list->data->name, bg_workers_list->data->pid, strerror(errno));
@@ -334,7 +334,6 @@ void drop_all_workers()
                     // check how child proccess terminated
                     if (WIFEXITED(status)) {
                         int exit_code = WEXITSTATUS(status);
-                        printf("exit: %d", exit_code);
                         if (exit_code != 0)
                             elog(WARN, "Proccess finished with non zero code: %d", exit_code);
                     } else if (WIFSIGNALED(status)) {
