@@ -1,13 +1,11 @@
-#include "boss_operations/boss_operations.h"
+#include "master.h"
 #include <stdio.h>
 #include <unistd.h>
 
 #define BUFFER_SIZE 4096
 
-extern void init(void *arg, ...)
+extern void init()
 {
-    Boss_op_func *func = (Boss_op_func *) arg;
-
     FILE *proc = fopen("/proc/self/maps", "r");
     if (proc == NULL)
     {
@@ -23,8 +21,8 @@ extern void init(void *arg, ...)
         return;
     }
 
-    func->cache_write_op("bbbbb", buffer, BUFFER_SIZE, 10);
-    func->print_cache_op("bbbbb");
+    cache_write_op("bbbbb", buffer, BUFFER_SIZE, 10);
+    print_cache_op("bbbbb");
     
     fclose(proc);
 }

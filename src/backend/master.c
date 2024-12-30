@@ -1,3 +1,7 @@
+/**
+ * The main proccess (the Boss)
+ */
+
 #include <dlfcn.h>
 #include <dirent.h>
 #include <stdlib.h>
@@ -12,52 +16,111 @@
 #include "memory/allocator.h"
 #include "memory/cache.h"
 #include "bg_worker/bg_worker.h"
-#include "boss_operations/hook.h"
 #include "master.h"
+#include "master_utils.h"
 
-/**
- * \brief Parse command line arguments and add it to GUC
- * \param [in] argc - count of elements in argv
- * \param [in] argv - array of command line arguments with flags and values
- * \return 0 if all is OK, 1 if argument is invalid
- */
-int parse_command_line(int argc, char *argv[])
+Hook executor_start_hook = NULL;
+Hook executor_end_hook = NULL;
+
+extern void hello_from_static_lib(void);
+extern void hello_from_dynamic_lib(void);
+
+void test_alloc()
 {
-    int c;
-    while ((c = getopt(argc, argv, "c:l:")) != -1)
-    {
-        switch (c)
-        {
-            case 'c':
-                define_custom_string_variable("conf_path", "Path to configuration file", optarg, C_MAIN | C_DYNAMIC);
-                break;
-            case 'l':
-                define_custom_string_variable("log_dir", "Path to directory with logs", optarg, C_MAIN | C_STATIC);
-                break;
-            default:
-                write_stderr("Unknow option: %c\n", c);
-                return 1;
-        }
-    }
+    print_alloc_mem();
+    int *a = OOS_allocate(4 * sizeof(int));
+    a[0] = 1;
+    a[1] = 2;
+    a[2] = 3;
+    a[3] = 4;
+    printf("%d\n", a[3]);
+    print_alloc_mem();
 
-    return 0;
+    int *b = OOS_allocate(10 * sizeof(int));
+    b[9] = 11;
+    printf("%d\n", b[9]);
+    print_alloc_mem();
+
+    int *c = OOS_allocate(5 * sizeof(int));
+    c[4] = 50;
+    printf("%d\n", c[4]);
+    print_alloc_mem();
+
+    printf("===================================================\n");
+    OOS_free(b);
+    print_alloc_mem();
+
+    int *d = OOS_allocate(15 * sizeof(int));
+    d[4] = 50;
+    printf("%d\n", d[4]);
+    print_alloc_mem();
+
+    int *e = OOS_allocate(8 * sizeof(int));
+    e[1] = 50;
+    printf("%d\n", e[1]);
+    print_alloc_mem();
+
+    printf("===================================================\n");
+    OOS_free(d);
+    print_alloc_mem();
+
+    printf("===================================================\n");
+    OOS_free(c);
+    print_alloc_mem();
+
+    printf("===================================================\n");
+    OOS_free(a);
+    print_alloc_mem();
+
+    printf("===================================================\n");
+    OOS_free(e);
+    print_alloc_mem();
 }
 
-/**
- * \brief Graceful shutdown all processes in the programm
- * \param [in] exit_code Code, which will be returned by main process (if it less than zero
- *  the function will ignore it and will not complete main process)
- */
-void shutdown(int exit_code)
-{
-    drop_all_workers();
-    drop_cache();
-    destroy_guc_table();
-    close_all_exetensions();
-    stop_logger();
+void test_cache()
+{   
+    char buffer[13];
+    cache_write("aaaaaa", "Hello world\n", 13, 100000000);
+    cache_read("aaaaaa", buffer, 13);
+    printf("%s", buffer);
+}
 
-    if (exit_code < 0)
-        return;
+int main(int argc, char *argv[])
+{
+    create_guc_table();
+    if (parse_command_line(argc, argv) != 0)
+        return 1;
     
-    exit(exit_code);
+    hello_from_static_lib();
+    hello_from_dynamic_lib();
+    parse_config();
+    init_logger();
+    init_cache();
+    //test_cache();
+    elog(LOG, "Logger inited successfully");
+
+    if (is_var_exists_in_config("base_dir", C_MAIN))
+    {
+        Guc_data base_dir = get_config_parameter("base_dir", C_MAIN);
+
+        lib_stack = create_stack();
+        loader(base_dir.str);
+
+        if (get_stack_size(lib_stack) > 0)
+        {
+            init_all_exetensions(lib_stack);
+        }
+        else
+        {
+            elog(WARN, "No extensions have been downloaded");
+        }
+    }
+    else
+    {
+        elog(WARN, "No extensions have been downloaded");
+    }
+
+    shutdown(-1);
+
+    return 0;
 }

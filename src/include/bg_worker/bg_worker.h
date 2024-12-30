@@ -2,7 +2,7 @@
  * bg_worker.h
  * This file contains structure describing background worker and function for work with it.
  */
-#include "../boss_operations/boss_operations.h"
+#include "../boss_operations.h"
 
 #pragma once
 

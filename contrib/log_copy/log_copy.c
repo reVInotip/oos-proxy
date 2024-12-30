@@ -6,9 +6,9 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include "boss_operations/boss_operations.h"
+#include "boss_operations.h"
 #include "guc/guc.h"
-#include "boss_operations/hook.h"
+#include "master.h"
 #include "logger/logger.h"
 
 #define LOG_BACKUP_DIR_NAME "log_backup"
@@ -89,8 +89,7 @@ void init(void *arg, ...) {
     prev_executor_end_hook = executor_end_hook;
     executor_end_hook = then_end;
 
-    Boss_op_func *func = (Boss_op_func *) arg;
-    char *log_dir = func->get_config_string_parameter_op("log_dir", C_MAIN);
+    char *log_dir = get_config_string_parameter_op("log_dir", C_MAIN);
     assert(log_dir != NULL);
 
     /*log_path = (char *) malloc(strlen(log_dir) + 7); // "../../...\0"

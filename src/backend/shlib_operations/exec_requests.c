@@ -11,7 +11,7 @@
 #include <dlfcn.h>
 #include <string.h>
 #include <errno.h>
-#include "../../include/boss_operations/boss_operations.h"
+#include "../../include/boss_operations.h"
 #include "../../include/shlib_operations/operations.h"
 #include "../../include/logger/logger.h"
 #include "../../include/bg_worker/bg_worker.h"
