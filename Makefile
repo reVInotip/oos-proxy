@@ -8,8 +8,8 @@ MY_LDFLAGS = ${CCFLAGS} ${CFLAGS} ${COPT} ${CPPFLAGS} ${LDFLAGS} -ldl -export-dy
 MY_LDFLAGS_DEBUG = -fsanitize=address,leak,undefined
 ROOT = src/backend
 BIN_NAME = proxy
-OBJ = bg_worker.o boss_operations.o guc.o master.o
-MAIN_OBJ = main.o
+OBJ = bg_worker.o boss_operations.o guc.o master_utils.o
+MAIN_OBJ = master.o
 LIBS_LINK = -lutils -loperations -lmemory -llogger -lstatic -ldynamic
 LIBS = utils.a operations.a memory.a static.a dynamic.so logger.so
 

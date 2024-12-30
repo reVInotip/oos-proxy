@@ -1,13 +1,14 @@
 #include "logger/logger.h"
-#include "boss_operations/boss_operations.h"
+#include "bg_worker/bg_worker.h"
+#include "master.h"
 #include <stdio.h>
 #include <unistd.h>
 #include <stdbool.h>
 
-extern void init(void *arg, ...)
+
+extern void init()
 {
-    Boss_op_func *func = (Boss_op_func *) arg;
-    func->register_background_worker("my_bgworker", "my_bgworker", true);
+    register_background_worker("my_bgworker", "log_healthcheck", false);
 }
 
 void my_bgworker()

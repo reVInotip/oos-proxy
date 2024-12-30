@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-extern void init(void *arg, ...)
+extern void init()
 {
     hello();
 }
