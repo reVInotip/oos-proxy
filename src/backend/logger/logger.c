@@ -15,7 +15,7 @@
 #include <assert.h>
 #include "logger/logger.h"
 #include "guc/guc.h"
-#include "master.h"
+#include "master_utils.h"
 
 #ifndef USE_VDSO_TIME
 #include <sys/syscall.h>

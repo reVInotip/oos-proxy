@@ -63,3 +63,6 @@ test.c
 presentation/
 install
 tmp
+.clang-format
+.clang-tidy
+.idea

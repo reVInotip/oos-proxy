@@ -4,7 +4,7 @@
  * load to shared memory, removal from it and initialization.
  */
 #include "../utils/stack.h"
-#include "../../include/boss_operations/boss_operations.h"
+#include "../../include/boss_operations.h"
 
 #pragma once
 

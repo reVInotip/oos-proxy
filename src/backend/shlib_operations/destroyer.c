@@ -6,7 +6,7 @@
 #include "utils/stack.h"
 #include "logger/logger.h"
 #include "shlib_operations/operations.h"
-#include "boss_operations/hook.h"
+#include "master.h"
 
 /**
     \brief Close all extensions and unload it from memory

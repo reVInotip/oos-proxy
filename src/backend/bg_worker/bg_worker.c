@@ -18,7 +18,7 @@
 #include <sys/wait.h>
 #include <string.h>
 #include <sys/user.h>
-#include "../../include/boss_operations/boss_operations.h"
+#include "../../include/boss_operations.h"
 #include "../../include/logger/logger.h"
 #include "../../include/utils/stack.h"
 #include "../../include/bg_worker/bg_worker.h"
